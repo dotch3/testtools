@@ -12,6 +12,7 @@ import {
   Settings,
   Plug,
   Database,
+  Bell,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
@@ -60,6 +61,11 @@ export const sidebarNavigation: NavSection[] = [
         titleKey: "nav.bugs",
         href: "/bugs",
         icon: Bug,
+      },
+      {
+        titleKey: "nav.notifications",
+        href: "/notifications",
+        icon: Bell,
       },
     ],
   },

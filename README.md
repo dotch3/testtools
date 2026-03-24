@@ -42,33 +42,58 @@ TestTool helps teams:
 | Cache | Redis 7 |
 | ORM | Prisma |
 
-## Quick Start (Containers)
+## Quick Start
 
-The fastest way to get started. Everything is automatic - database, migrations, and seed are handled on first boot:
+### 1. Setup Environment
+
+Choose the environment file based on how you want to run:
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd testtool
+# Option A: Local development (npm run)
+cp .env.local .env
 
-# Copy environment file (already configured for containers)
-cp .env.example .env
+# Option B: Docker/Podman containers
+cp .env.podman .env
+```
 
-# Build and run everything
+### 2. Start Infrastructure
+
+**Option A: Local (requires PostgreSQL + Redis installed)**
+```bash
+brew install postgresql@16 redis
+brew services start postgresql@16
+brew services start redis
+createdb testtool
+```
+
+**Option B: Containers**
+```bash
 docker compose --profile local-db up -d
 # or
 podman compose --profile local-db up -d
 ```
 
-The backend automatically:
-1. Waits for database to be ready
-2. Runs migrations (if needed)
-3. Seeds initial data (if needed)
-4. Starts the server
+### 3. Run Backend
 
-On subsequent starts, it skips migrations and seed - just starts the server.
+```bash
+cd backend
+npm install
+npx prisma generate
+npx prisma migrate dev --name init
+npx prisma db seed
+npm run dev
+```
 
-Wait for services to start (about 30 seconds), then access:
+### 4. Run Frontend (another terminal)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### Access Points
+
 - **Frontend**: http://localhost:3000
 - **API**: http://localhost:3001
 - **API Docs**: http://localhost:3001/docs
@@ -80,33 +105,13 @@ Email:    admin@company.com
 Password: changeme123!
 ```
 
-## Local Development
+### Environment Files
 
-For development with hot reload:
-
-### Backend
-
-See [backend/README.md](backend/README.md) for detailed instructions.
-
-```bash
-cd backend
-npm install
-cp .env.example .env
-npx prisma generate
-npx prisma migrate dev --name init
-npx prisma db seed
-npm run dev
-```
-
-### Frontend
-
-See [frontend/README.md](frontend/README.md) for detailed instructions.
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
+| File | Use Case |
+|------|----------|
+| `.env.local` | Local development with npm |
+| `.env.podman` | Docker/Podman containers |
+| `.env.example` | Template with all options |
 
 ## Documentation
 

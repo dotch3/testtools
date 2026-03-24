@@ -7,7 +7,7 @@ export default fp(async (app: FastifyInstance) => {
   await app.register(swagger, {
     openapi: {
       info: {
-        title: 'teststool API',
+        title: 'TestTool API',
         description: 'Test management system REST API',
         version: '1.0.0',
       },

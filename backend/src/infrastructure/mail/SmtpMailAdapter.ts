@@ -22,7 +22,7 @@ export class SmtpMailAdapter implements IMailAdapter {
     await this.transporter.sendMail({
       from: this.from,
       to,
-      subject: 'Reset your teststool password',
+      subject: 'Reset your TestTool password',
       html: `<p>Click the link below to reset your password. It expires in 1 hour.</p>
              <p><a href="${resetUrl}">${resetUrl}</a></p>`,
     })

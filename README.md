@@ -1,8 +1,8 @@
-# TestSTool - Test Case Management System
+# TestTool - Test Case Management System
 
-TestSTool is a comprehensive test case management platform designed to help development and QA teams organize, track, and execute their testing workflows efficiently. The system provides a centralized hub for managing test plans, test suites, test cases, and execution results.
+TestTool is a comprehensive test case management platform designed to help development and QA teams organize, track, and execute their testing workflows efficiently. The system provides a centralized hub for managing test plans, test suites, test cases, and execution results.
 
-With TestSTool, teams can create structured test hierarchies, track execution progress, manage bugs, and maintain detailed audit logs of all testing activities. The platform supports both manual and automated testing workflows, making it suitable for projects of any size.
+With TestTool, teams can create structured test hierarchies, track execution progress, manage bugs, and maintain detailed audit logs of all testing activities. The platform supports both manual and automated testing workflows, making it suitable for projects of any size.
 
 ## Key Benefits
 
@@ -60,7 +60,7 @@ With TestSTool, teams can create structured test hierarchies, track execution pr
 ## Project Structure
 
 ```
-teststool/
+testtool/
 ├── backend/
 │   ├── prisma/              # Database schema & migrations
 │   ├── src/
@@ -80,7 +80,7 @@ teststool/
 
 ```bash
 git clone <repository-url>
-cd teststool
+cd testtool
 cp .env.example .env  # Or create .env from the template below
 ```
 
@@ -96,7 +96,7 @@ podman run -d --name testtool-postgres \
   --network testtool-internal \
   -e POSTGRES_USER=postgres \
   -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=teststool \
+  -e POSTGRES_DB=testtool \
   -v postgres_data:/var/lib/postgresql/data \
   postgres:16-alpine
 
@@ -165,7 +165,7 @@ podman run -d --name testtool-postgres \
   --network testtool-internal \
   -e POSTGRES_USER=postgres \
   -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=teststool \
+  -e POSTGRES_DB=testtool \
   -v postgres_data:/var/lib/postgresql/data \
   postgres:16-alpine
 
@@ -193,8 +193,8 @@ Create a `.env` file in the project root with the following variables:
 
 ```env
 # ─── Database ───────────────────────────────────────────────────────────────
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/teststool
-DATABASE_POOL_URL=postgresql://postgres:postgres@localhost:5432/teststool
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/testtool
+DATABASE_POOL_URL=postgresql://postgres:postgres@localhost:5432/testtool
 SHADOW_DATABASE_URL=
 
 # ─── Redis ───────────────────────────────────────────────────────────────────
@@ -243,7 +243,7 @@ LOCKOUT_DURATION_MINUTES=15
 When running in containers, use the service name instead of `localhost`:
 
 ```env
-DATABASE_URL=postgresql://postgres:postgres@postgres:5432/teststool
+DATABASE_URL=postgresql://postgres:postgres@postgres:5432/testtool
 REDIS_URL=redis://redis:6379
 ```
 
@@ -342,7 +342,7 @@ podman run -d --name testtool-postgres ...
 
 MIT License
 
-Copyright (c) 2026 TestSTool
+Copyright (c) 2026 TestTool
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

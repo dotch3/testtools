@@ -1,5 +1,5 @@
 // backend/prisma/schema.prisma
-// Database schema for teststool — 22 tables.
+// Database schema for TestTool — 22 tables.
 // All enum-like fields use FK → EnumValue instead of Prisma enums,
 // so admins can customize values from the UI.
 

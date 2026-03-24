@@ -1,4 +1,4 @@
-# teststool — Class Diagram
+# TestTool — Class Diagram
 
 Render this file in VS Code with the "Markdown Preview Mermaid Support" extension, or paste into https://mermaid.live
 

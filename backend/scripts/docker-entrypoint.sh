@@ -4,9 +4,16 @@
 
 set -e
 
-# Determine database host - can be overridden via DB_HOST env var
-# Docker compose uses 'postgres', local podman might use 'testtool-postgres'
-DB_HOST=${DB_HOST:-postgres}
+# Extract database host from DATABASE_URL if DB_HOST not set
+if [ -z "$DB_HOST" ]; then
+  # Extract host from DATABASE_URL (format: postgresql://user:pass@host:port/db)
+  DB_HOST=$(echo "$DATABASE_URL" | sed -n 's|.*@\([^:]*\):.*|\1|p')
+  if [ -z "$DB_HOST" ]; then
+    DB_HOST="testtool-postgres"
+  fi
+fi
+
+echo "Using database host: $DB_HOST"
 
 echo "Waiting for database to be ready..."
 max_attempts=30
@@ -28,14 +35,14 @@ if [ $attempt -ge $max_attempts ]; then
 fi
 
 echo "Running database migrations..."
-DATABASE_URL="postgresql://postgres:postgres@$DB_HOST:5432/testtool" DATABASE_POOL_URL="postgresql://postgres:postgres@$DB_HOST:5432/testtool" npx prisma migrate deploy
+npx prisma migrate deploy
 
 echo "Checking if seed is needed..."
 admin_count=$(PGPASSWORD=postgres psql -h "$DB_HOST" -U postgres -d testtool -t -c "SELECT COUNT(*) FROM users WHERE email = '$ADMIN_EMAIL';" 2>/dev/null | tr -d ' ' | tr -d '\n')
 
 if [ -z "$admin_count" ] || [ "$admin_count" = "0" ]; then
   echo "Running database seed..."
-  DATABASE_URL="postgresql://postgres:postgres@$DB_HOST:5432/testtool" DATABASE_POOL_URL="postgresql://postgres:postgres@$DB_HOST:5432/testtool" ADMIN_EMAIL="$ADMIN_EMAIL" ADMIN_PASSWORD="$ADMIN_PASSWORD" npx prisma db seed
+  ADMIN_EMAIL="$ADMIN_EMAIL" ADMIN_PASSWORD="$ADMIN_PASSWORD" npx prisma db seed
 else
   echo "Database already seeded, skipping..."
 fi

@@ -1,3 +1,7 @@
+"use client"
+
+import { UsersTable } from "@/components/admin/UsersTable"
+
 export default function AdminUsersPage() {
   return (
     <div className="space-y-6">
@@ -7,6 +11,7 @@ export default function AdminUsersPage() {
           Manage user accounts and permissions
         </p>
       </div>
+      <UsersTable />
     </div>
   )
 }

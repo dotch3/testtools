@@ -1,6 +1,7 @@
 // Set required env vars before any module loads, so the module-level
 // validateConfig(process.env) call in src/config.ts does not throw.
 process.env.DATABASE_URL = process.env.DATABASE_URL ?? 'postgresql://x:x@localhost/test'
+process.env.DATABASE_POOL_URL = process.env.DATABASE_POOL_URL ?? process.env.DATABASE_URL
 process.env.REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379'
 process.env.JWT_SECRET = process.env.JWT_SECRET ?? 'a'.repeat(32)
 process.env.ENCRYPTION_KEY = process.env.ENCRYPTION_KEY ?? '0'.repeat(64)

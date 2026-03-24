@@ -27,6 +27,7 @@
     "dontHaveAccount": "Don't have an account?",
     "alreadyHaveAccount": "Already have an account?",
     "orContinueWith": "Or continue with",
+    "loading": "Loading...",
     "createYourAccount": "Create your account",
     "enterYourCredentials": "Enter your credentials to access your account",
     "resetYourPassword": "Reset your password",

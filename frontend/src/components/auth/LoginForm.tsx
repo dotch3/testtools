@@ -76,7 +76,7 @@ export function LoginForm() {
         </div>
 
         <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? t("common.loading") : t("login")}
+          {isLoading ? t("loading") : t("login")}
         </Button>
       </form>
 

@@ -10,7 +10,7 @@ export default function ResetPasswordPage() {
 
   return (
     <AuthCard title={t("resetYourPassword")} description={t("enterNewPassword")}>
-      <Suspense fallback={<div className="text-center py-4">{t("common.loading")}</div>}>
+      <Suspense fallback={<div className="text-center py-4">{t("loading")}</div>}>
         <ResetPasswordForm />
       </Suspense>
     </AuthCard>

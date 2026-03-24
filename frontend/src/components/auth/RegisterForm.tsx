@@ -106,7 +106,7 @@ export function RegisterForm() {
         </div>
 
         <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? t("common.loading") : t("register")}
+          {isLoading ? t("loading") : t("register")}
         </Button>
       </form>
 

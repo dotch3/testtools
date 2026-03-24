@@ -99,7 +99,7 @@ export function ResetPasswordForm() {
       </div>
 
       <Button type="submit" className="w-full" disabled={isLoading}>
-        {isLoading ? t("common.loading") : t("common.confirm")}
+        {isLoading ? t("loading") : t("confirm")}
       </Button>
     </form>
   )

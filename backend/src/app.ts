@@ -7,6 +7,10 @@ import { healthRoutes } from './interfaces/http/routes/health.js'
 import { authRoutes } from './interfaces/http/routes/auth.js'
 import { profileRoutes } from './interfaces/http/routes/profile.js'
 import { projectRoutes } from './interfaces/http/routes/projects.js'
+import { testPlanRoutes } from './interfaces/http/routes/testPlans.js'
+import { testSuiteRoutes } from './interfaces/http/routes/testSuites.js'
+import { testCaseRoutes } from './interfaces/http/routes/testCases.js'
+import { importRoutes } from './interfaces/http/routes/import.js'
 import { adminUsersRoutes } from './interfaces/http/routes/admin/users.js'
 import { logger } from './logger.js'
 
@@ -48,6 +52,10 @@ export async function buildApp() {
   await app.register(authRoutes, { prefix: '/api/v1' })
   await app.register(profileRoutes, { prefix: '/api/v1' })
   await app.register(projectRoutes, { prefix: '/api/v1' })
+  await app.register(testPlanRoutes, { prefix: '/api/v1' })
+  await app.register(testSuiteRoutes, { prefix: '/api/v1' })
+  await app.register(testCaseRoutes, { prefix: '/api/v1' })
+  await app.register(importRoutes, { prefix: '/api/v1' })
   await app.register(adminUsersRoutes, { prefix: '/api/v1' })
 
   return app

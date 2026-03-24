@@ -1,12 +1,14 @@
-// Fastify application factory.
-// Registers plugins and routes. Exported as a factory so tests can call buildApp().
 import Fastify from 'fastify'
 import swaggerPlugin from './interfaces/http/plugins/swagger.js'
 import corsPlugin from './interfaces/http/plugins/cors.js'
+import authPlugin from './interfaces/http/plugins/auth.js'
+import auditLogPlugin from './interfaces/http/plugins/auditLog.js'
 import { healthRoutes } from './interfaces/http/routes/health.js'
+import { authRoutes } from './interfaces/http/routes/auth.js'
+import { profileRoutes } from './interfaces/http/routes/profile.js'
+import { adminUsersRoutes } from './interfaces/http/routes/admin/users.js'
 import { logger } from './logger.js'
 
-// Fastify requires fatal and trace methods; wrap the Winston logger to provide them.
 const fastifyLogger = Object.assign(Object.create(Object.getPrototypeOf(logger)), logger, {
   fatal: logger.error.bind(logger),
   trace: logger.debug.bind(logger),
@@ -24,12 +26,14 @@ export async function buildApp() {
     disableRequestLogging: false,
   })
 
-  // Plugins
   await app.register(corsPlugin)
   await app.register(swaggerPlugin)
+  await app.register(auditLogPlugin)
 
-  // Routes — all prefixed with /api/v1
   await app.register(healthRoutes, { prefix: '/api/v1' })
+  await app.register(authRoutes, { prefix: '/api/v1' })
+  await app.register(profileRoutes, { prefix: '/api/v1' })
+  await app.register(adminUsersRoutes, { prefix: '/api/v1' })
 
   return app
 }

@@ -1,3 +1,7 @@
+"use client"
+
+import { CoverageReport } from "@/components/reports/CoverageReport"
+
 export default function CoveragePage() {
   return (
     <div className="space-y-6">
@@ -7,6 +11,7 @@ export default function CoveragePage() {
           Test coverage analysis and reports
         </p>
       </div>
+      <CoverageReport />
     </div>
   )
 }

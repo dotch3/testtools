@@ -1,3 +1,7 @@
+"use client"
+
+import { ReportsDashboard } from "@/components/reports/ReportsDashboard"
+
 export default function ReportsDashboardPage() {
   return (
     <div className="space-y-6">
@@ -7,6 +11,7 @@ export default function ReportsDashboardPage() {
           Analytics and insights from test activities
         </p>
       </div>
+      <ReportsDashboard />
     </div>
   )
 }

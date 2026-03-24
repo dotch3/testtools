@@ -1,36 +1,102 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Frontend - TestTool UI
 
-## Getting Started
+Next.js-based frontend for TestTool, featuring a modern dark-themed interface.
 
-First, run the development server:
+## Stack
+
+- **Framework**: Next.js 16
+- **UI**: React 19
+- **Styling**: Tailwind CSS 4
+- **Internationalization**: next-intl
+- **Icons**: Lucide React
+
+## Prerequisites
+
+- Node.js 22+
+- TestTool Backend running on port 3001
+
+## Quick Start
+
+### 1. Install Dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure Environment
+
+The frontend expects the API at `http://localhost:3001`. Configure via environment variables:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3001/api/v1
+FRONTEND_URL=http://localhost:3000
+UI_DEFAULT_THEME=dark
+```
+
+### 3. Run Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Available Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Build for production |
+| `npm start` | Run production server |
+| `npm run lint` | Run ESLint |
 
-## Learn More
+## Project Structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+src/
+├── app/                 # Next.js App Router pages
+├── components/          # React components
+│   ├── ui/              # Base UI components
+│   └── providers/       # Context providers
+├── lib/                 # Utilities
+└── styles/              # Global styles
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Features
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Authentication
 
-## Deploy on Vercel
+- Login with email/password
+- OAuth2 integration (GitHub, Google, Microsoft)
+- Password reset flow
+- Session management
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Theme
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Supports dark, light, and system themes. Theme preference is stored per-user.
+
+### Internationalization
+
+The app supports multiple languages via `next-intl`. Default language is Portuguese (Brazil).
+
+## Docker
+
+### Build Image
+
+```bash
+docker build -t testtool-frontend:latest frontend/
+# or
+podman build -t testtool-frontend:latest frontend/
+```
+
+### Run Container
+
+```bash
+docker run -d \
+  --name testtool-frontend \
+  -p 3000:3000 \
+  --env-file .env \
+  testtool-frontend:latest
+```
+
+For full-stack deployment, see the [root README](../README.md).

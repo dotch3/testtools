@@ -1,0 +1,29 @@
+{
+  "common": {
+    "loading": "Carregando...",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "delete": "Excluir",
+    "edit": "Editar",
+    "create": "Criar",
+    "search": "Buscar",
+    "confirm": "Confirmar",
+    "back": "Voltar",
+    "actions": "Ações"
+  },
+  "auth": {
+    "login": "Entrar",
+    "logout": "Sair",
+    "email": "E-mail",
+    "password": "Senha",
+    "forgotPassword": "Esqueceu sua senha?",
+    "loginWithGitHub": "Entrar com GitHub",
+    "loginWithGoogle": "Entrar com Google",
+    "loginWithMicrosoft": "Entrar com Microsoft"
+  },
+  "nav": {
+    "projects": "Projetos",
+    "settings": "Configurações",
+    "profile": "Perfil"
+  }
+}

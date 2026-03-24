@@ -109,7 +109,7 @@ export class AuthService {
             avatarUrl: userInfo.avatarUrl,
             roleId: defaultRole!.id,
             emailVerified: true,
-            oAuthAccounts: {
+            oauthAccounts: {
               create: {
                 provider,
                 providerUserId: userInfo.providerUserId,
@@ -201,10 +201,9 @@ export class AuthService {
     const tokenHash = createHash('sha256').update(token).digest('hex')
     const expiresAt = new Date(Date.now() + 3600000)
 
-    await prisma.passwordResetToken.upsert({
-      where: { userId: user.id },
-      create: { userId: user.id, tokenHash, expiresAt },
-      update: { tokenHash, expiresAt, usedAt: null },
+    await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } })
+    await prisma.passwordResetToken.create({
+      data: { userId: user.id, tokenHash, expiresAt },
     })
 
     const { getMailAdapter } = await import('../infrastructure/mail/mailFactory.js')

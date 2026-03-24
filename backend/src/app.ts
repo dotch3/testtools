@@ -29,6 +29,7 @@ export async function buildApp() {
   await app.register(corsPlugin)
   await app.register(swaggerPlugin)
   await app.register(auditLogPlugin)
+  await app.register(authPlugin)
 
   await app.register(healthRoutes, { prefix: '/api/v1' })
   await app.register(authRoutes, { prefix: '/api/v1' })

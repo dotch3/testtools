@@ -3,7 +3,7 @@ import { z } from 'zod'
 const configSchema = z.object({
   DATABASE_URL: z.string().url(),
   DATABASE_POOL_URL: z.string().url().optional(),
-  SHADOW_DATABASE_URL: z.string().url().optional(),
+  SHADOW_DATABASE_URL: z.string().url().optional().or(z.literal('')),
   REDIS_URL: z.string().min(1),
   AUTH_MODE: z.enum(['local', 'oauth', 'both']).default('both'),
   ALLOW_REGISTRATION: z.coerce.boolean().default(false),

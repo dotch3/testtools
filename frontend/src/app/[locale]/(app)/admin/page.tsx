@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import {
   Users,
   Shield,
@@ -45,7 +46,7 @@ const adminNavItems = [
 ]
 
 export default function AdminPage() {
-  const pathname = typeof window !== "undefined" ? window.location.pathname : ""
+  const pathname = usePathname()
 
   return (
     <div className="space-y-6">

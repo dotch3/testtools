@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { ArrowLeft, Shield, Plus, Pencil, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -88,7 +89,7 @@ const adminNavItems = [
 ]
 
 export default function AdminRolesPage() {
-  const pathname = typeof window !== "undefined" ? window.location.pathname : ""
+  const pathname = usePathname()
 
   return (
     <div className="space-y-6">

@@ -3,6 +3,7 @@
 import { useTheme } from "next-themes"
 import { Sun, Moon, Monitor } from "lucide-react"
 import { useTranslations } from "next-intl"
+import { useEffect, useState } from "react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +15,11 @@ import { Button } from "@/components/ui/button"
 export function ThemeToggle() {
   const t = useTranslations("theme")
   const { setTheme, theme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const options = [
     { value: "light", label: t("light"), icon: Sun },
@@ -23,6 +29,15 @@ export function ThemeToggle() {
 
   const currentOption = options.find((opt) => opt.value === theme) ?? options[2]
   const Icon = currentOption.icon
+
+  if (!mounted) {
+    return (
+      <Button variant="ghost" size="icon" className="h-9 w-9">
+        <Sun className="h-4 w-4" />
+        <span className="sr-only">{t("toggle")}</span>
+      </Button>
+    )
+  }
 
   return (
     <DropdownMenu>

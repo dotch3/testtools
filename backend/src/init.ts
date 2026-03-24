@@ -16,9 +16,9 @@ export async function runInit(): Promise<void> {
     ]
     for (const dir of dirs) {
       mkdirSync(dir, { recursive: true })
-      logger.debug({ action: 'init.mkdir', dir }, `Ensured directory exists: ${dir}`)
+      logger.debug(`Ensured directory exists: ${dir}`, { action: 'init.mkdir', dir })
     }
   }
 
-  logger.info({ action: 'init.complete' }, 'First-boot init complete')
+  logger.info('First-boot init complete', { action: 'init.complete' })
 }

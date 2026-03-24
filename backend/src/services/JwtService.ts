@@ -20,7 +20,7 @@ export class JwtService {
   ) {}
 
   signAccessToken(payload: AccessTokenPayload): string {
-    return jwt.sign(payload, this.secret, { expiresIn: this.expiresIn })
+    return jwt.sign(payload, this.secret, { expiresIn: this.expiresIn as any })
   }
 
   verifyAccessToken(token: string): AccessTokenPayload {
@@ -29,7 +29,7 @@ export class JwtService {
 
   signRefreshToken(userId: string): string {
     const payload: RefreshTokenPayload = { userId, type: 'refresh' }
-    return jwt.sign(payload, this.secret, { expiresIn: this.refreshExpiresIn })
+    return jwt.sign(payload, this.secret, { expiresIn: this.refreshExpiresIn as any })
   }
 
   verifyRefreshToken(token: string): RefreshTokenPayload {

@@ -12,9 +12,9 @@ async function start() {
 
   try {
     await app.listen({ port: 3001, host: '0.0.0.0' })
-    logger.info({ action: 'server.start', port: 3001 }, 'teststool backend started')
+    logger.info('teststool backend started', { action: 'server.start', port: 3001 })
   } catch (err) {
-    logger.error({ action: 'server.start', error: err }, 'Failed to start server')
+    logger.error('Failed to start server', { action: 'server.start', error: err })
     process.exit(1)
   }
 }

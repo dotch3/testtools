@@ -23,25 +23,13 @@ const fastifyLogger = Object.assign(Object.create(Object.getPrototypeOf(logger))
 export async function buildApp() {
   const app = Fastify({
     loggerInstance: fastifyLogger,
-    disableRequestLogging: true,
+    disableRequestLogging: false,
   })
 
   await app.register(corsPlugin)
   await app.register(swaggerPlugin)
   await app.register(auditLogPlugin)
   await app.register(authPlugin)
-
-  app.get('/', {
-    schema: { hide: true },
-  }, async (_, reply) => {
-    return reply.redirect('/docs')
-  })
-
-  app.get('/api/v1', {
-    schema: { hide: true },
-  }, async (_, reply) => {
-    return reply.redirect('/docs')
-  })
 
   await app.register(healthRoutes, { prefix: '/api/v1' })
   await app.register(authRoutes, { prefix: '/api/v1' })

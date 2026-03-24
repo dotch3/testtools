@@ -17,27 +17,53 @@ Next.js-based frontend for TestTool, featuring a modern dark-themed interface.
 
 ## Setup Environment
 
-```bash
-# Copy environment template
-cp ../.env.local .env.local
-```
+Copy the appropriate environment file from the root directory:
 
-The frontend needs only 3 variables:
-- `NEXT_PUBLIC_API_URL` - Backend API URL
-- `FRONTEND_URL` - Frontend URL
-- `UI_DEFAULT_THEME` - Default theme (dark/light/system)
+```bash
+# For local development
+cp ../.env.local .env.local
+
+# For Docker/Podman (uses NEXT_PUBLIC_API_URL from backend)
+cp ../.env.podman .env.local
+```
 
 ## Run Development Server
 
 ```bash
 npm install
-npm run build
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-Note: The first time you access, it will redirect to `/pt-BR` (Portuguese locale).
+## Docker/Podman Deployment
+
+### First Time Setup
+
+```bash
+# Build image
+cd ..
+podman build -t testtool-frontend:latest frontend/
+
+# Run container
+podman run -d \
+  --name testtool-frontend \
+  -p 3000:3000 \
+  --env-file .env.podman \
+  testtool-frontend:latest
+```
+
+### After Code Changes
+
+```bash
+podman rm -f testtool-frontend
+podman build -t testtool-frontend:latest frontend/
+podman run -d \
+  --name testtool-frontend \
+  -p 3000:3000 \
+  --env-file .env.podman \
+  testtool-frontend:latest
+```
 
 ## Available Scripts
 
@@ -77,20 +103,24 @@ Supports dark, light, and system themes. Theme preference is stored per-user.
 
 The app supports multiple languages via `next-intl`. Default language is Portuguese (Brazil).
 
-## Docker/Podman Deployment
+## Docker
 
 ### Build Image
 
 ```bash
-podman build -t testtool-frontend:latest .
+docker build -t testtool-frontend:latest frontend/
+# or
+podman build -t testtool-frontend:latest frontend/
 ```
 
 ### Run Container
 
 ```bash
-podman run -d \
+docker run -d \
   --name testtool-frontend \
   -p 3000:3000 \
-  --env-file .env.local \
+  --env-file .env \
   testtool-frontend:latest
 ```
+
+For full-stack deployment, see the [root README](../README.md).

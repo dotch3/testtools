@@ -11,6 +11,9 @@ import { testPlanRoutes } from './interfaces/http/routes/testPlans.js'
 import { testSuiteRoutes } from './interfaces/http/routes/testSuites.js'
 import { testCaseRoutes } from './interfaces/http/routes/testCases.js'
 import { importRoutes } from './interfaces/http/routes/import.js'
+import { executionRoutes } from './interfaces/http/routes/executions.js'
+import { bugRoutes } from './interfaces/http/routes/bugs.js'
+import { webhookRoutes } from './interfaces/http/routes/webhooks.js'
 import { adminUsersRoutes } from './interfaces/http/routes/admin/users.js'
 import { logger } from './logger.js'
 
@@ -56,6 +59,9 @@ export async function buildApp() {
   await app.register(testSuiteRoutes, { prefix: '/api/v1' })
   await app.register(testCaseRoutes, { prefix: '/api/v1' })
   await app.register(importRoutes, { prefix: '/api/v1' })
+  await app.register(executionRoutes, { prefix: '/api/v1' })
+  await app.register(bugRoutes, { prefix: '/api/v1' })
+  await app.register(webhookRoutes, { prefix: '/api/v1' })
   await app.register(adminUsersRoutes, { prefix: '/api/v1' })
 
   return app

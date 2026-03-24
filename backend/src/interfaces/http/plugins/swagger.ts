@@ -17,7 +17,6 @@ export default fp(async (app: FastifyInstance) => {
           bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
         },
       },
-      security: [{ bearerAuth: [] }],
     },
   })
 

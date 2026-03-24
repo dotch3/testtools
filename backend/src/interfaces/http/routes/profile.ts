@@ -11,6 +11,7 @@ export async function profileRoutes(app: FastifyInstance) {
       schema: {
         tags: ['Profile'],
         summary: 'Get current user profile',
+        security: [{ bearerAuth: [] }],
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {

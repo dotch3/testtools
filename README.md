@@ -44,19 +44,15 @@ TestTool helps teams:
 
 ## Quick Start (Containers)
 
-The fastest way to get started:
+The fastest way to get started. Everything is automatic - database, migrations, and seed are handled on first boot:
 
 ```bash
 # Clone the repository
 git clone <repository-url>
 cd testtool
 
-# Copy environment file
+# Copy environment file (already configured for containers)
 cp .env.example .env
-
-# Edit .env and set DATABASE_URL and REDIS_URL to use service names:
-# DATABASE_URL=postgresql://postgres:postgres@postgres:5432/testtool
-# REDIS_URL=redis://redis:6379
 
 # Build and run everything
 docker compose --profile local-db up -d
@@ -64,7 +60,15 @@ docker compose --profile local-db up -d
 podman compose --profile local-db up -d
 ```
 
-Wait for services to start, then access:
+The backend automatically:
+1. Waits for database to be ready
+2. Runs migrations (if needed)
+3. Seeds initial data (if needed)
+4. Starts the server
+
+On subsequent starts, it skips migrations and seed - just starts the server.
+
+Wait for services to start (about 30 seconds), then access:
 - **Frontend**: http://localhost:3000
 - **API**: http://localhost:3001
 - **API Docs**: http://localhost:3001/docs

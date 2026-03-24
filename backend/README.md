@@ -13,61 +13,79 @@ Fastify-based REST API for TestTool, built with TypeScript and Prisma ORM.
 ## Prerequisites
 
 - Node.js 22+
-- PostgreSQL 16+ (or Docker/Podman)
-- Redis 7+ (or Docker/Podman)
+- PostgreSQL 16+ (local or container)
+- Redis 7+ (local or container)
 
-## Quick Start
+## Setup Environment
 
-### 1. Install Dependencies
-
-```bash
-npm install
-```
-
-### 2. Configure Environment
-
-Create a `.env` file based on the example:
+Copy the appropriate environment file from the root directory:
 
 ```bash
-cp .env.example .env
+# For local development
+cp ../.env.local .env
+
+# For Docker/Podman
+cp ../.env.podman .env
 ```
 
-Edit `.env` with your settings:
+## Database Setup
 
-```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/testtool
-DATABASE_POOL_URL=postgresql://postgres:postgres@localhost:5432/testtool
-REDIS_URL=redis://localhost:6379
-JWT_SECRET=your-secret-key-at-least-32-chars
-ADMIN_EMAIL=admin@company.com
-ADMIN_PASSWORD=changeme123!
-```
-
-### 3. Database Setup
+Make sure PostgreSQL is running (local or container), then:
 
 ```bash
 # Generate Prisma client
 npx prisma generate
 
-# Run migrations
+# Run migrations (creates tables)
 npx prisma migrate dev --name init
 
-# Seed initial data
+# Seed initial data (creates admin user)
 npx prisma db seed
 ```
 
-### 4. Run the Server
+## Run Development Server
 
 ```bash
-# Development (with hot reload)
+npm install
 npm run dev
-
-# Production
-npm run build
-npm start
 ```
 
 The API will be available at `http://localhost:3001`.
+
+## Docker/Podman Deployment
+
+### First Time Setup
+
+```bash
+# Build image
+cd ..
+podman build -t testtool-backend:latest backend/
+
+# Run container
+podman run -d \
+  --name testtool-backend \
+  --network testtool-internal \
+  -p 3001:3001 \
+  --env-file .env.podman \
+  testtool-backend:latest
+```
+
+### After Code Changes
+
+Rebuild and restart:
+
+```bash
+podman rm -f testtool-backend
+podman build -t testtool-backend:latest backend/
+podman run -d \
+  --name testtool-backend \
+  --network testtool-internal \
+  -p 3001:3001 \
+  --env-file .env.podman \
+  testtool-backend:latest
+```
+
+The container automatically runs migrations and seed on first boot.
 
 ## Development
 

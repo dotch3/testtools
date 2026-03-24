@@ -15,31 +15,55 @@ Next.js-based frontend for TestTool, featuring a modern dark-themed interface.
 - Node.js 22+
 - TestTool Backend running on port 3001
 
-## Quick Start
+## Setup Environment
 
-### 1. Install Dependencies
+Copy the appropriate environment file from the root directory:
+
+```bash
+# For local development
+cp ../.env.local .env.local
+
+# For Docker/Podman (uses NEXT_PUBLIC_API_URL from backend)
+cp ../.env.podman .env.local
+```
+
+## Run Development Server
 
 ```bash
 npm install
-```
-
-### 2. Configure Environment
-
-The frontend expects the API at `http://localhost:3001`. Configure via environment variables:
-
-```env
-NEXT_PUBLIC_API_URL=http://localhost:3001/api/v1
-FRONTEND_URL=http://localhost:3000
-UI_DEFAULT_THEME=dark
-```
-
-### 3. Run Development Server
-
-```bash
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## Docker/Podman Deployment
+
+### First Time Setup
+
+```bash
+# Build image
+cd ..
+podman build -t testtool-frontend:latest frontend/
+
+# Run container
+podman run -d \
+  --name testtool-frontend \
+  -p 3000:3000 \
+  --env-file .env.podman \
+  testtool-frontend:latest
+```
+
+### After Code Changes
+
+```bash
+podman rm -f testtool-frontend
+podman build -t testtool-frontend:latest frontend/
+podman run -d \
+  --name testtool-frontend \
+  -p 3000:3000 \
+  --env-file .env.podman \
+  testtool-frontend:latest
+```
 
 ## Available Scripts
 

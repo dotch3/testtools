@@ -114,6 +114,71 @@ class ApiClient {
   async delete<T>(path: string, options?: RequestInit): Promise<T> {
     return this.request<T>("DELETE", path, options)
   }
+
+  async login(email: string, password: string): Promise<{
+    accessToken: string
+    refreshToken: string
+    user: unknown
+  }> {
+    return this.request("POST", "/auth/login", {
+      body: JSON.stringify({ email, password }),
+      skipAuth: true,
+    })
+  }
+
+  async register(data: {
+    email: string
+    password: string
+    name: string
+  }): Promise<{
+    accessToken: string
+    refreshToken: string
+    user: unknown
+  }> {
+    return this.request("POST", "/auth/register", {
+      body: JSON.stringify(data),
+      skipAuth: true,
+    })
+  }
+
+  async logout(refreshToken?: string): Promise<void> {
+    try {
+      await this.request("POST", "/auth/logout", {
+        body: JSON.stringify({ refreshToken }),
+      })
+    } finally {
+      localStorage.removeItem("access_token")
+      localStorage.removeItem("refresh_token")
+    }
+  }
+
+  async forgotPassword(email: string): Promise<{ success: boolean }> {
+    return this.request("POST", "/auth/forgot-password", {
+      body: JSON.stringify({ email }),
+      skipAuth: true,
+    })
+  }
+
+  async resetPassword(
+    token: string,
+    newPassword: string
+  ): Promise<{ success: boolean }> {
+    return this.request("POST", "/auth/reset-password", {
+      body: JSON.stringify({ token, newPassword }),
+      skipAuth: true,
+    })
+  }
+
+  async changePassword(
+    currentPassword: string,
+    newPassword: string
+  ): Promise<{ success: boolean }> {
+    return this.post("/auth/change-password", { currentPassword, newPassword })
+  }
+
+  oauth(provider: "github" | "google" | "microsoft"): void {
+    window.location.href = `${this.baseUrl}/auth/oauth/${provider}`
+  }
 }
 
 export const api = new ApiClient(API_BASE)

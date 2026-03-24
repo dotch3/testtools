@@ -9,17 +9,38 @@
     "search": "Search",
     "confirm": "Confirm",
     "back": "Back",
-    "actions": "Actions"
+    "actions": "Actions",
+    "or": "or"
   },
   "auth": {
     "login": "Sign In",
     "logout": "Sign Out",
+    "register": "Create Account",
     "email": "Email",
     "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "name": "Full Name",
     "forgotPassword": "Forgot password?",
     "loginWithGitHub": "Sign in with GitHub",
     "loginWithGoogle": "Sign in with Google",
-    "loginWithMicrosoft": "Sign in with Microsoft"
+    "loginWithMicrosoft": "Sign in with Microsoft",
+    "dontHaveAccount": "Don't have an account?",
+    "alreadyHaveAccount": "Already have an account?",
+    "orContinueWith": "Or continue with",
+    "createYourAccount": "Create your account",
+    "enterYourCredentials": "Enter your credentials to access your account",
+    "resetYourPassword": "Reset your password",
+    "enterEmailForReset": "Enter your email and we'll send you a reset link",
+    "sendResetLink": "Send Reset Link",
+    "enterNewPassword": "Enter your new password",
+    "resetPasswordSuccess": "Password reset successfully",
+    "goToLogin": "Go to Login",
+    "validation": {
+      "required": "This field is required",
+      "invalidEmail": "Please enter a valid email address",
+      "passwordTooShort": "Password must be at least 8 characters",
+      "passwordsDoNotMatch": "Passwords do not match"
+    }
   },
   "nav": {
     "dashboard": "Dashboard",

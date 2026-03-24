@@ -9,17 +9,38 @@
     "search": "Buscar",
     "confirm": "Confirmar",
     "back": "Voltar",
-    "actions": "Ações"
+    "actions": "Ações",
+    "or": "ou"
   },
   "auth": {
     "login": "Entrar",
     "logout": "Sair",
+    "register": "Criar Conta",
     "email": "E-mail",
     "password": "Senha",
+    "confirmPassword": "Confirmar Senha",
+    "name": "Nome Completo",
     "forgotPassword": "Esqueceu sua senha?",
     "loginWithGitHub": "Entrar com GitHub",
     "loginWithGoogle": "Entrar com Google",
-    "loginWithMicrosoft": "Entrar com Microsoft"
+    "loginWithMicrosoft": "Entrar com Microsoft",
+    "dontHaveAccount": "Não tem uma conta?",
+    "alreadyHaveAccount": "Já tem uma conta?",
+    "orContinueWith": "Ou continue com",
+    "createYourAccount": "Crie sua conta",
+    "enterYourCredentials": "Digite suas credenciais para acessar sua conta",
+    "resetYourPassword": "Redefina sua senha",
+    "enterEmailForReset": "Digite seu e-mail e enviaremos um link de redefinição",
+    "sendResetLink": "Enviar Link de Redefinição",
+    "enterNewPassword": "Digite sua nova senha",
+    "resetPasswordSuccess": "Senha redefinida com sucesso",
+    "goToLogin": "Ir para Login",
+    "validation": {
+      "required": "Este campo é obrigatório",
+      "invalidEmail": "Por favor, insira um endereço de e-mail válido",
+      "passwordTooShort": "A senha deve ter pelo menos 8 caracteres",
+      "passwordsDoNotMatch": "As senhas não coincidem"
+    }
   },
   "nav": {
     "dashboard": "Painel",

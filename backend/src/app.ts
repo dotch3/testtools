@@ -6,6 +6,7 @@ import auditLogPlugin from './interfaces/http/plugins/auditLog.js'
 import { healthRoutes } from './interfaces/http/routes/health.js'
 import { authRoutes } from './interfaces/http/routes/auth.js'
 import { profileRoutes } from './interfaces/http/routes/profile.js'
+import { projectRoutes } from './interfaces/http/routes/projects.js'
 import { adminUsersRoutes } from './interfaces/http/routes/admin/users.js'
 import { logger } from './logger.js'
 
@@ -46,6 +47,7 @@ export async function buildApp() {
   await app.register(healthRoutes, { prefix: '/api/v1' })
   await app.register(authRoutes, { prefix: '/api/v1' })
   await app.register(profileRoutes, { prefix: '/api/v1' })
+  await app.register(projectRoutes, { prefix: '/api/v1' })
   await app.register(adminUsersRoutes, { prefix: '/api/v1' })
 
   return app

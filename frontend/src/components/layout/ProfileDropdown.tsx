@@ -20,7 +20,7 @@ export function ProfileDropdown() {
 
   if (!user) return null
 
-  const initials = user.name
+  const initials = (user.name ?? user.email)
     .split(" ")
     .map((n) => n[0])
     .join("")

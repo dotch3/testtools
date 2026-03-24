@@ -1,6 +1,16 @@
 # TestSTool - Test Case Management System
 
-A comprehensive test case management system with OAuth2 authentication, test suites, test plans, and bug tracking capabilities.
+TestSTool is a comprehensive test case management platform designed to help development and QA teams organize, track, and execute their testing workflows efficiently. The system provides a centralized hub for managing test plans, test suites, test cases, and execution results.
+
+With TestSTool, teams can create structured test hierarchies, track execution progress, manage bugs, and maintain detailed audit logs of all testing activities. The platform supports both manual and automated testing workflows, making it suitable for projects of any size.
+
+## Key Benefits
+
+- **Centralized Test Management**: Organize test cases into logical test suites and plans
+- **Execution Tracking**: Track test runs, results, and historical trends
+- **Team Collaboration**: Role-based access control ensures proper permissions
+- **Bug Integration**: Link test failures directly to bug reports
+- **Audit Trail**: Complete history of all changes and actions
 
 ## Features
 
@@ -19,10 +29,12 @@ A comprehensive test case management system with OAuth2 authentication, test sui
   - Bug tracking with severity and priority
 
 - **Integrations**
-  - Jira integration
-  - GitHub/GitLab integration
-  - Jenkins CI/CD integration
-  - GitHub Actions integration
+  - Jira for issue tracking and project management
+  - GitHub/GitLab for repository integration and PR-linked testing
+  - Confluence for documentation linking
+  - Jenkins CI/CD for automated test triggers
+  - GitHub Actions for CI/CD pipeline integration
+  - Webhook support for custom integrations
 
 - **Additional Features**
   - Custom fields support
@@ -328,4 +340,28 @@ podman run -d --name testtool-postgres ...
 
 ## License
 
-MIT
+MIT License
+
+Copyright (c) 2026 TestSTool
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+**Created by**: dotch3@gmail.com

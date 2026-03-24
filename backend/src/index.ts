@@ -2,8 +2,12 @@
 import { config } from './config.js'
 import { logger } from './logger.js'
 import { buildApp } from './app.js'
+import { runInit } from './init.js'
 
 async function start() {
+  // Run first-boot initialization (create dirs, etc.) before accepting requests
+  await runInit()
+
   const app = await buildApp()
 
   try {

@@ -22,8 +22,39 @@
     "loginWithMicrosoft": "Sign in with Microsoft"
   },
   "nav": {
-    "projects": "Projects",
+    "dashboard": "Dashboard",
+    "testPlans": "Test Plans",
+    "testSuites": "Test Suites",
+    "testCases": "Test Cases",
+    "executions": "Executions",
+    "bugs": "Bugs",
+    "reports": "Reports",
+    "reportsDashboard": "Reports Dashboard",
+    "coverage": "Coverage",
+    "admin": "Administration",
+    "users": "Users",
+    "roles": "Roles",
+    "enums": "Enumerations",
+    "integrations": "Integrations",
     "settings": "Settings",
+    "projects": "Projects",
     "profile": "Profile"
+  },
+  "breadcrumbs": {
+    "home": "Home"
+  },
+  "theme": {
+    "toggle": "Toggle theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "profile": {
+    "myProfile": "My Profile",
+    "changePassword": "Change Password",
+    "logout": "Logout"
+  },
+  "layout": {
+    "loadingUser": "Loading user..."
   }
 }

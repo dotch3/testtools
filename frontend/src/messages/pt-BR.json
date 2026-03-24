@@ -22,8 +22,39 @@
     "loginWithMicrosoft": "Entrar com Microsoft"
   },
   "nav": {
-    "projects": "Projetos",
+    "dashboard": "Painel",
+    "testPlans": "Planos de Teste",
+    "testSuites": "Suítes de Teste",
+    "testCases": "Casos de Teste",
+    "executions": "Execuções",
+    "bugs": "Bugs",
+    "reports": "Relatórios",
+    "reportsDashboard": "Painel de Relatórios",
+    "coverage": "Cobertura",
+    "admin": "Administração",
+    "users": "Usuários",
+    "roles": "Funções",
+    "enums": "Enumerações",
+    "integrations": "Integrações",
     "settings": "Configurações",
+    "projects": "Projetos",
     "profile": "Perfil"
+  },
+  "breadcrumbs": {
+    "home": "Início"
+  },
+  "theme": {
+    "toggle": "Alternar tema",
+    "light": "Claro",
+    "dark": "Escuro",
+    "system": "Sistema"
+  },
+  "profile": {
+    "myProfile": "Meu Perfil",
+    "changePassword": "Alterar Senha",
+    "logout": "Sair"
+  },
+  "layout": {
+    "loadingUser": "Carregando usuário..."
   }
 }

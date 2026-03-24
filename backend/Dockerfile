@@ -22,19 +22,22 @@ FROM node:22-alpine AS runner
 
 WORKDIR /app
 
-# Only install production dependencies
+# Install production dependencies and dev dependencies needed for Prisma
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev && npm install prisma tsx && apk add --no-cache postgresql-client
 
 # Copy compiled output and Prisma client
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/prisma ./prisma
 
+# Copy entrypoint script
+COPY scripts/docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # Create storage and log directories
 RUN mkdir -p /data/uploads /logs
 
 EXPOSE 3001
 
-# Run migrations then start the server
-CMD ["sh", "-c", "node dist/index.js"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

@@ -2,13 +2,14 @@
 #   local-db — starts postgres and backup containers (on-premise / full-local mode)
 #
 # Usage:
-#   Full-local:  docker-compose --profile local-db up
-#   Cloud DB:    docker-compose up
+#   Full-local:  docker compose --profile local-db up
+#   Cloud DB:    docker compose up
 
 services:
-  postgres:
+  testtool-postgres:
     image: postgres:16-alpine
     profiles: [local-db]
+    container_name: testtool-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -23,8 +24,9 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
+  testtool-redis:
     image: redis:7-alpine
+    container_name: testtool-redis
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
@@ -36,10 +38,11 @@ services:
       timeout: 5s
       retries: 5
 
-  backend:
+  testtool-backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    container_name: testtool-backend
     env_file: .env
     ports:
       - "3001:3001"
@@ -50,15 +53,16 @@ services:
       - internal
       - public
     depends_on:
-      redis:
+      testtool-redis:
         condition: service_healthy
-      postgres:
+      testtool-postgres:
         condition: service_healthy
 
-  worker:
+  testtool-worker:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    container_name: testtool-worker
     command: ["node", "dist/worker.js"]
     env_file: .env
     volumes:
@@ -67,26 +71,28 @@ services:
     networks:
       - internal
     depends_on:
-      redis:
+      testtool-redis:
         condition: service_healthy
-      postgres:
+      testtool-postgres:
         condition: service_healthy
 
-  frontend:
+  testtool-frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    container_name: testtool-frontend
     env_file: .env
     ports:
       - "3000:3000"
     networks:
       - public
     depends_on:
-      - backend
+      - testtool-backend
 
-  backup:
+  testtool-backup:
     image: postgres:16-alpine
     profiles: [local-db]
+    container_name: testtool-backup
     env_file: .env
     volumes:
       - backups_data:/data/backups
@@ -95,7 +101,7 @@ services:
     entrypoint: >
       sh -c "apk add --no-cache busybox && echo '0 2 * * * pg_dump $$DATABASE_URL -F c -f /data/backups/testtool_$$(date +\\%Y\\%m\\%d_\\%H\\%M\\%S).dump' | crontab - && crond -f -l 8"
     depends_on:
-      postgres:
+      testtool-postgres:
         condition: service_healthy
 
 volumes:
@@ -107,4 +113,6 @@ volumes:
 
 networks:
   internal:
+    name: testtool-internal
   public:
+    name: testtool-public

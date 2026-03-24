@@ -7,3 +7,5 @@ dist/
 logs/
 data/
 .DS_Store
+.claude
+superpowers/

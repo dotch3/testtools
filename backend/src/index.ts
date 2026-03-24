@@ -1,4 +1,5 @@
 // Server entry point — validates config, runs first-boot init, starts Fastify.
+import 'dotenv/config'
 import { config } from './config.js'
 import { logger } from './logger.js'
 import { buildApp } from './app.js'

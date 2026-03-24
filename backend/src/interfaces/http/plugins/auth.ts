@@ -19,6 +19,8 @@ export default fp(async (app: FastifyInstance) => {
   app.decorateRequest('user', undefined)
 
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
+    if (request.url === '/') return
+    if (request.url === '/api/v1') return
     if (request.url.startsWith('/api/v1/auth/')) return
     if (request.url.startsWith('/docs')) return
     if (request.url === '/api/v1/health') return

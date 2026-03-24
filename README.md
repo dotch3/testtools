@@ -46,19 +46,19 @@ TestTool helps teams:
 
 ### 1. Setup Environment
 
-Choose the environment file based on how you want to run:
+Each service has its own `.env` file. Copy the templates:
 
 ```bash
-# Option A: Local development (npm run)
-cp .env.local .env
+# Copy backend environment
+cp .env.local backend/.env
 
-# Option B: Docker/Podman containers
-cp .env.podman .env
+# Copy frontend environment
+cp .env.local frontend/.env.local
 ```
 
 ### 2. Start Infrastructure
 
-**Option A: Local (requires PostgreSQL + Redis installed)**
+**Local (requires PostgreSQL + Redis installed):**
 ```bash
 brew install postgresql@16 redis
 brew services start postgresql@16
@@ -66,10 +66,8 @@ brew services start redis
 createdb testtool
 ```
 
-**Option B: Containers**
+**Containers:**
 ```bash
-docker compose --profile local-db up -d
-# or
 podman compose --profile local-db up -d
 ```
 
@@ -80,9 +78,10 @@ cd backend
 npm install
 npx prisma generate
 npx prisma migrate dev --name init
-npx prisma db seed
 npm run dev
 ```
+
+The `migrate dev` command automatically runs migrations and seed.
 
 ### 4. Run Frontend (another terminal)
 
@@ -107,11 +106,13 @@ Password: changeme123!
 
 ### Environment Files
 
-| File | Use Case |
-|------|----------|
-| `.env.local` | Local development with npm |
-| `.env.podman` | Docker/Podman containers |
-| `.env.example` | Template with all options |
+| File | Description |
+|------|-------------|
+| `backend/.env` | Backend variables (database, redis, auth, etc.) |
+| `frontend/.env.local` | Frontend variables (API URL, theme) |
+| `.env.local` | Template for local development |
+| `.env.podman` | Template for Docker/Podman |
+| `.env.example` | Full template with all options |
 
 ## Documentation
 

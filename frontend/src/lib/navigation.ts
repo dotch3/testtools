@@ -13,6 +13,7 @@ import {
   Plug,
   Database,
   Bell,
+  LogOut,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
@@ -21,6 +22,7 @@ export interface NavItem {
   href: string
   icon: LucideIcon
   badge?: string
+  isLogout?: boolean
 }
 
 export interface NavSection {
@@ -112,6 +114,12 @@ export const sidebarNavigation: NavSection[] = [
         titleKey: "nav.settings",
         href: "/admin/settings",
         icon: Settings,
+      },
+      {
+        titleKey: "nav.logout",
+        href: "/logout",
+        icon: LogOut,
+        isLogout: true,
       },
     ],
   },

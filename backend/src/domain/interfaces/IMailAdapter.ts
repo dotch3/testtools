@@ -12,4 +12,9 @@ export interface IMailAdapter {
    * Sends a generic notification email.
    */
   sendNotification(to: string, subject: string, body: string): Promise<void>
+
+  /**
+   * Sends a welcome email to newly registered users.
+   */
+  sendWelcome(to: string, name?: string): Promise<void>
 }

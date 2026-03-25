@@ -1,6 +1,5 @@
 "use client"
 
-import { useTheme } from "next-themes"
 import { Sun, Moon, Monitor } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useEffect, useState } from "react"
@@ -12,22 +11,49 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 
+type Theme = "light" | "dark" | "system"
+
 export function ThemeToggle() {
   const t = useTranslations("theme")
-  const { setTheme, theme } = useTheme()
+  const [theme, setThemeState] = useState<Theme>("dark")
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    const stored = localStorage.getItem("theme") as Theme | null
+    if (stored) {
+      setThemeState(stored)
+      applyTheme(stored)
+    } else {
+      applyTheme("dark")
+    }
     setMounted(true)
   }, [])
 
-  const options = [
-    { value: "light", label: t("light"), icon: Sun },
-    { value: "dark", label: t("dark"), icon: Moon },
-    { value: "system", label: t("system"), icon: Monitor },
-  ] as const
+  const applyTheme = (newTheme: Theme) => {
+    const root = document.documentElement
+    root.classList.remove("light", "dark")
 
-  const currentOption = options.find((opt) => opt.value === theme) ?? options[2]
+    if (newTheme === "system") {
+      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
+      root.classList.add(systemTheme)
+    } else {
+      root.classList.add(newTheme)
+    }
+  }
+
+  const setTheme = (newTheme: Theme) => {
+    setThemeState(newTheme)
+    localStorage.setItem("theme", newTheme)
+    applyTheme(newTheme)
+  }
+
+  const options = [
+    { value: "light" as Theme, label: t("light"), icon: Sun },
+    { value: "dark" as Theme, label: t("dark"), icon: Moon },
+    { value: "system" as Theme, label: t("system"), icon: Monitor },
+  ]
+
+  const currentOption = options.find((opt) => opt.value === theme) ?? options[1]
   const Icon = currentOption.icon
 
   if (!mounted) {

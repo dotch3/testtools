@@ -5,6 +5,7 @@ import { config } from '../config.js'
 import { logger } from '../logger.js'
 import { encrypt } from '../utils/crypto.js'
 import { validatePassword } from '../utils/passwordPolicy.js'
+import { getMailAdapter } from '../infrastructure/mail/mailFactory.js'
 import type { JwtService } from './JwtService.js'
 
 export interface TokenResult {
@@ -156,6 +157,18 @@ export class AuthService {
     })
 
     logger.info('User registered', { action: 'auth.register', userId: user.id })
+
+    // Send welcome email (optional - don't fail registration if SMTP is not configured)
+    const mailAdapter = getMailAdapter()
+    if (mailAdapter) {
+      try {
+        await mailAdapter.sendWelcome(email, name)
+        logger.info('Welcome email sent', { action: 'auth.welcome_email', userId: user.id })
+      } catch (emailError) {
+        logger.warn('Failed to send welcome email', { action: 'auth.welcome_email', userId: user.id, error: emailError })
+      }
+    }
+
     return user
   }
 

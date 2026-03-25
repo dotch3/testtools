@@ -44,15 +44,18 @@ class ApiClient {
       if (refreshed) {
         return this.request<T>(method, path, { ...options, skipAuth: true })
       }
+      // Clear tokens and redirect to login
       if (typeof window !== "undefined") {
+        localStorage.removeItem("access_token")
+        localStorage.removeItem("refresh_token")
         window.location.href = "/login"
       }
-      throw new Error("Unauthorized")
+      throw new Error("Session expired. Please login again.")
     }
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
-      throw new Error(error.message ?? `HTTP ${response.status}`)
+      throw new Error(error.error ?? error.message ?? `HTTP ${response.status}`)
     }
 
     return response.json()

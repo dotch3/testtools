@@ -120,7 +120,7 @@ npm run dev
 ### Default Credentials
 
 ```
-Email:    admin@company.com
+Email:    admin@testtools.com
 Password: changeme123!
 ```
 
@@ -197,7 +197,7 @@ JWT_SECRET=your-secret-key-at-least-32-characters
 ENCRYPTION_KEY=64-char-hex-key
 
 # Admin (first boot)
-ADMIN_EMAIL=admin@company.com
+ADMIN_EMAIL=admin@testtools.com
 ADMIN_PASSWORD=changeme123!
 ```
 

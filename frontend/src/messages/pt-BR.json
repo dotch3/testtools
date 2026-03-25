@@ -61,7 +61,8 @@
     "integrations": "Integrações",
     "settings": "Configurações",
     "projects": "Projetos",
-    "profile": "Perfil"
+    "profile": "Perfil",
+    "logout": "Sair"
   },
   "breadcrumbs": {
     "home": "Início"

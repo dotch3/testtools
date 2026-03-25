@@ -289,7 +289,7 @@ export function UsersTable() {
                 onChange={(e) =>
                   setCreateForm({ ...createForm, email: e.target.value })
                 }
-                placeholder="user@example.com"
+                placeholder="user@testtools.com"
               />
             </div>
             <div>

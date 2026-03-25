@@ -9,7 +9,7 @@ interface AuthCardProps {
 
 export function AuthCard({ title, description, children }: AuthCardProps) {
   return (
-    <div className="w-full max-w-sm space-y-6">
+    <div className="w-full max-w-sm space-y-6 rounded-lg border bg-card p-6 shadow-sm">
       <div className="space-y-2 text-center">
         <div className="flex justify-center mb-4">
           <Link href="/" className="flex items-center gap-2">

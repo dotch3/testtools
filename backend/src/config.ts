@@ -17,7 +17,7 @@ export const config = {
   OAUTH_GOOGLE_CLIENT_SECRET: process.env.OAUTH_GOOGLE_CLIENT_SECRET || '',
   OAUTH_MICROSOFT_CLIENT_ID: process.env.OAUTH_MICROSOFT_CLIENT_ID || '',
   OAUTH_MICROSOFT_CLIENT_SECRET: process.env.OAUTH_MICROSOFT_CLIENT_SECRET || '',
-  ADMIN_EMAIL: process.env.ADMIN_EMAIL || 'admin@company.com',
+  ADMIN_EMAIL: process.env.ADMIN_EMAIL || 'admin@testtools.com',
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || 'changeme123!',
   STORAGE_PROVIDER: process.env.STORAGE_PROVIDER || 'local',
   STORAGE_PATH: process.env.STORAGE_PATH || './data/uploads',
@@ -49,7 +49,7 @@ export const config = {
   SMTP_SECURE: process.env.SMTP_SECURE === 'true',
   SMTP_USER: process.env.SMTP_USER || '',
   SMTP_PASS: process.env.SMTP_PASS || '',
-  SMTP_FROM: process.env.SMTP_FROM || 'TestTool <no-reply@company.com>',
+  SMTP_FROM: process.env.SMTP_FROM || 'TestTool <no-reply@testtools.com>',
 }
 
 export interface Config {

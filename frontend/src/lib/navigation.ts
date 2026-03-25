@@ -13,7 +13,6 @@ import {
   Plug,
   Database,
   Bell,
-  Info,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
@@ -37,11 +36,6 @@ export const sidebarNavigation: NavSection[] = [
         titleKey: "nav.dashboard",
         href: "/dashboard",
         icon: LayoutDashboard,
-      },
-      {
-        titleKey: "nav.about",
-        href: "/about",
-        icon: Info,
       },
       {
         titleKey: "nav.testPlans",

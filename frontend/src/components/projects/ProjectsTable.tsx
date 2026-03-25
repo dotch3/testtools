@@ -2,25 +2,336 @@
 
 import { useTranslations } from "next-intl"
 import { api } from "@/lib/api"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import type { Project } from "@/types/project"
 import { Button } from "@/components/ui/button"
-import { Plus } from "lucide-react"
-import { CreateProjectDialog } from "./CreateProjectDialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  Plus,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  AlertCircle,
+  CheckCircle,
+} from "lucide-react"
 import Link from "next/link"
+
+interface ProjectFormData {
+  name: string
+  description: string
+}
+
+interface FormErrors {
+  name?: string
+}
+
+function CreateProjectDialog({
+  onSubmit,
+  trigger,
+}: {
+  onSubmit: (data: ProjectFormData) => Promise<void>
+  trigger?: React.ReactNode
+}) {
+  const t = useTranslations("common")
+  const [isOpen, setIsOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState("")
+  const [formData, setFormData] = useState<ProjectFormData>({ name: "", description: "" })
+  const [errors, setErrors] = useState<FormErrors>({})
+
+  const validate = (): boolean => {
+    const newErrors: FormErrors = {}
+    if (!formData.name.trim()) {
+      newErrors.name = "Project name is required"
+    } else if (formData.name.length < 3) {
+      newErrors.name = "Project name must be at least 3 characters"
+    }
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    
+    if (!validate()) return
+    
+    setIsSubmitting(true)
+    try {
+      await onSubmit(formData)
+      setIsOpen(false)
+      setFormData({ name: "", description: "" })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create project")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild onClick={() => setIsOpen(true)}>
+        {trigger}
+      </DialogTrigger>
+      <DialogContent>
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Create Project</DialogTitle>
+            <DialogDescription>
+              Create a new project to organize your test management work.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {error && (
+            <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm">
+              <AlertCircle className="h-4 w-4" />
+              {error}
+            </div>
+          )}
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="create-name">
+                Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="create-name"
+                value={formData.name}
+                onChange={(e) => {
+                  setFormData({ ...formData, name: e.target.value })
+                  if (errors.name) setErrors({ ...errors, name: undefined })
+                }}
+                placeholder="My Project"
+                className={errors.name ? "border-destructive" : ""}
+              />
+              {errors.name && (
+                <p className="text-sm text-destructive">{errors.name}</p>
+              )}
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="create-description">Description</Label>
+              <Input
+                id="create-description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Project description..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Creating..." : "Create Project"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function EditProjectDialog({
+  project,
+  onSubmit,
+  trigger,
+}: {
+  project: Project
+  onSubmit: (data: ProjectFormData) => Promise<void>
+  trigger?: React.ReactNode
+}) {
+  const t = useTranslations("common")
+  const [isOpen, setIsOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState("")
+  const [formData, setFormData] = useState<ProjectFormData>({
+    name: project.name,
+    description: project.description || "",
+  })
+  const [errors, setErrors] = useState<FormErrors>({})
+
+  const validate = (): boolean => {
+    const newErrors: FormErrors = {}
+    if (!formData.name.trim()) {
+      newErrors.name = "Project name is required"
+    } else if (formData.name.length < 3) {
+      newErrors.name = "Project name must be at least 3 characters"
+    }
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    
+    if (!validate()) return
+    
+    setIsSubmitting(true)
+    try {
+      await onSubmit(formData)
+      setIsOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update project")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleOpenChange = (open: boolean) => {
+    if (open) {
+      setFormData({ name: project.name, description: project.description || "" })
+      setErrors({})
+      setError("")
+    }
+    setIsOpen(open)
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild onClick={() => setIsOpen(true)}>
+        {trigger}
+      </DialogTrigger>
+      <DialogContent>
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Edit Project</DialogTitle>
+            <DialogDescription>
+              Update project details.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {error && (
+            <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm">
+              <AlertCircle className="h-4 w-4" />
+              {error}
+            </div>
+          )}
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-name">
+                Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="edit-name"
+                value={formData.name}
+                onChange={(e) => {
+                  setFormData({ ...formData, name: e.target.value })
+                  if (errors.name) setErrors({ ...errors, name: undefined })
+                }}
+                className={errors.name ? "border-destructive" : ""}
+              />
+              {errors.name && (
+                <p className="text-sm text-destructive">{errors.name}</p>
+              )}
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <Input
+                id="edit-description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ProjectsSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Skeleton className="h-10 w-32" />
+      </div>
+      <div className="rounded-lg border">
+        <div className="p-4 space-y-3">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="flex items-center gap-4">
+              <Skeleton className="h-10 flex-1" />
+              <Skeleton className="h-10 w-24" />
+              <Skeleton className="h-10 w-20" />
+              <Skeleton className="h-10 w-20" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EmptyState({ onCreate }: { onCreate: () => void }) {
+  return (
+    <div className="rounded-lg border bg-card p-8 text-center">
+      <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
+        <Plus className="h-6 w-6 text-muted-foreground" />
+      </div>
+      <h3 className="text-lg font-medium mb-1">No projects yet</h3>
+      <p className="text-sm text-muted-foreground mb-4">
+        Create your first project to get started.
+      </p>
+      <Button onClick={onCreate}>
+        <Plus className="mr-2 h-4 w-4" />
+        Create Project
+      </Button>
+    </div>
+  )
+}
+
+function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="rounded-lg border bg-destructive/5 p-8 text-center">
+      <AlertCircle className="mx-auto h-12 w-12 text-destructive mb-4" />
+      <h3 className="text-lg font-medium mb-1">Something went wrong</h3>
+      <p className="text-sm text-muted-foreground mb-4">{message}</p>
+      <Button variant="outline" onClick={onRetry}>
+        Try Again
+      </Button>
+    </div>
+  )
+}
 
 export function ProjectsTable() {
   const t = useTranslations("common")
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
 
-  useEffect(() => {
-    loadProjects()
-  }, [])
-
-  const loadProjects = async () => {
+  const loadProjects = useCallback(async () => {
     try {
+      setError("")
+      setIsLoading(true)
       const data = await api.get<Project[]>("/projects")
       setProjects(data)
     } catch (err) {
@@ -28,25 +339,45 @@ export function ProjectsTable() {
     } finally {
       setIsLoading(false)
     }
+  }, [])
+
+  useEffect(() => {
+    loadProjects()
+  }, [loadProjects])
+
+  const handleCreateProject = async (data: ProjectFormData) => {
+    await api.post("/projects", data)
+    await loadProjects()
+    setIsCreateOpen(false)
   }
 
-  const handleCreateProject = async (data: { name: string; description: string }) => {
+  const handleUpdateProject = async (id: string, data: ProjectFormData) => {
+    await api.patch(`/projects/${id}`, data)
+    await loadProjects()
+  }
+
+  const handleDeleteProject = async (project: Project) => {
+    if (!confirm(`Are you sure you want to delete "${project.name}"? This action cannot be undone.`)) {
+      return
+    }
+    
+    setDeletingId(project.id)
     try {
-      await api.post("/projects", data)
-      await loadProjects()
+      await api.delete(`/projects/${project.id}`)
+      setProjects(projects.filter((p) => p.id !== project.id))
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create project")
+      alert(err instanceof Error ? err.message : "Failed to delete project")
+    } finally {
+      setDeletingId(null)
     }
   }
 
   if (isLoading) {
-    return <div className="text-center py-8">{t("loading")}</div>
+    return <ProjectsSkeleton />
   }
 
-  if (error) {
-    return (
-      <div className="rounded-md bg-destructive/10 p-4 text-destructive">{error}</div>
-    )
+  if (error && projects.length === 0) {
+    return <ErrorState message={error} onRetry={loadProjects} />
   }
 
   return (
@@ -57,21 +388,28 @@ export function ProjectsTable() {
           trigger={
             <Button>
               <Plus className="mr-2 h-4 w-4" />
-              {t("create")}
+              Create Project
             </Button>
           }
         />
       </div>
 
-      {projects.length === 0 ? (
-        <div className="rounded-lg border bg-card p-8 text-center">
-          <p className="text-muted-foreground">No projects yet.</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            Create your first project to get started.
-          </p>
+      {error && (
+        <div className="flex items-center justify-between p-3 rounded-md bg-destructive/10 text-destructive text-sm">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4" />
+            {error}
+          </div>
+          <Button variant="ghost" size="sm" onClick={loadProjects}>
+            Retry
+          </Button>
         </div>
+      )}
+
+      {projects.length === 0 ? (
+        <EmptyState onCreate={() => setIsCreateOpen(true)} />
       ) : (
-        <div className="rounded-lg border">
+        <div className="rounded-lg border bg-card overflow-hidden">
           <table className="w-full">
             <thead>
               <tr className="border-b bg-muted/50">
@@ -79,12 +417,12 @@ export function ProjectsTable() {
                 <th className="px-4 py-3 text-left text-sm font-medium">Description</th>
                 <th className="px-4 py-3 text-center text-sm font-medium">Members</th>
                 <th className="px-4 py-3 text-center text-sm font-medium">Test Plans</th>
-                <th className="px-4 py-3 text-right text-sm font-medium">{t("actions")}</th>
+                <th className="px-4 py-3 text-right text-sm font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {projects.map((project) => (
-                <tr key={project.id} className="border-b">
+                <tr key={project.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
                   <td className="px-4 py-3">
                     <Link
                       href={`/projects/${project.id}`}
@@ -94,7 +432,7 @@ export function ProjectsTable() {
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">
-                    {project.description || "-"}
+                    {project.description || <span className="italic">No description</span>}
                   </td>
                   <td className="px-4 py-3 text-center text-sm">
                     {project._count?.members ?? 0}
@@ -103,9 +441,39 @@ export function ProjectsTable() {
                     {project._count?.testPlans ?? 0}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/projects/${project.id}`}>View</Link>
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild>
+                          <Link href={`/projects/${project.id}`} className="flex items-center">
+                            <CheckCircle className="mr-2 h-4 w-4" />
+                            View Details
+                          </Link>
+                        </DropdownMenuItem>
+                        <EditProjectDialog
+                          project={project}
+                          onSubmit={(data) => handleUpdateProject(project.id, data)}
+                          trigger={
+                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Edit
+                            </DropdownMenuItem>
+                          }
+                        />
+                        <DropdownMenuItem
+                          onClick={() => handleDeleteProject(project)}
+                          disabled={deletingId === project.id}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          {deletingId === project.id ? "Deleting..." : "Delete"}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </td>
                 </tr>
               ))}
@@ -116,3 +484,5 @@ export function ProjectsTable() {
     </div>
   )
 }
+
+export { CreateProjectDialog }

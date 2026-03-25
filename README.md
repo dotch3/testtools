@@ -4,6 +4,8 @@ A comprehensive platform for managing test cases, test plans, test suites, and e
 
 ## About
 
+![TestTool Dashboard](docs/images/TestTools.png)
+
 TestTool helps teams:
 - Organize test cases into logical test suites and plans
 - Track test execution progress and results

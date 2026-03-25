@@ -45,6 +45,7 @@
   },
   "nav": {
     "dashboard": "Painel",
+    "about": "Sobre",
     "testPlans": "Planos de Teste",
     "testSuites": "Suítes de Teste",
     "testCases": "Casos de Teste",

@@ -79,5 +79,39 @@
   },
   "layout": {
     "loadingUser": "Loading user..."
+  },
+  "about": {
+    "title": "About TestTool",
+    "description": "TestTool is a project developed by a QA professional for QA and Development teams.",
+    "purpose": "The goal is to provide a free, open-source alternative to commercial test management tools.",
+    "featuresTitle": "Key Features",
+    "features": "Features include test case management, test plan execution tracking, bug management, CI/CD integration, and comprehensive reports.",
+    "techStack": "Tech Stack",
+    "contribute": "Star the project on GitHub!"
+  },
+  "settings": {
+    "organizationName": "Organization Name",
+    "defaultTimezone": "Default Timezone",
+    "dateFormat": "Date Format",
+    "general": "General",
+    "notifications": "Notifications",
+    "emailNotifications": "Email Notifications",
+    "emailNotificationsDesc": "Receive email updates on test completion",
+    "executionAlerts": "Execution Alerts",
+    "executionAlertsDesc": "Get notified when tests fail",
+    "weeklySummary": "Weekly Summary",
+    "weeklySummaryDesc": "Receive a weekly summary of test results",
+    "security": "Security",
+    "twoFactorAuth": "Two-Factor Authentication",
+    "twoFactorAuthDesc": "Require 2FA for all users",
+    "sessionTimeout": "Session Timeout",
+    "sessionTimeoutDesc": "Auto-logout after inactivity",
+    "passwordPolicy": "Password Policy",
+    "passwordPolicyDesc": "Enforce strong password requirements",
+    "dataManagement": "Data Management",
+    "dataRetention": "Data Retention",
+    "dataRetentionDesc": "How long to keep execution history and logs",
+    "clearAllData": "Clear All Data",
+    "saveChanges": "Save Changes"
   }
 }

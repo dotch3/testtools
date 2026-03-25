@@ -79,5 +79,39 @@
   },
   "layout": {
     "loadingUser": "Carregando usuário..."
+  },
+  "about": {
+    "title": "Sobre o TestTool",
+    "description": "TestTool é um projeto desenvolvido por um profissional de QA para equipes de QA e Desenvolvimento.",
+    "purpose": "O objetivo é fornecer uma alternativa gratuita e de código aberto às ferramentas comerciais de gerenciamento de testes.",
+    "featuresTitle": "Principais Recursos",
+    "features": "Os recursos incluem gerenciamento de casos de teste, rastreamento de execução de planos de teste, gerenciamento de bugs, integração com CI/CD e relatórios abrangentes.",
+    "techStack": "Tecnologias",
+    "contribute": "Dê uma estrela no GitHub!"
+  },
+  "settings": {
+    "organizationName": "Nome da Organização",
+    "defaultTimezone": "Fuso Horário Padrão",
+    "dateFormat": "Formato de Data",
+    "general": "Geral",
+    "notifications": "Notificações",
+    "emailNotifications": "Notificações por E-mail",
+    "emailNotificationsDesc": "Receba atualizações por e-mail sobre conclusão de testes",
+    "executionAlerts": "Alertas de Execução",
+    "executionAlertsDesc": "Seja notificado quando os testes falharem",
+    "weeklySummary": "Resumo Semanal",
+    "weeklySummaryDesc": "Receba um resumo semanal dos resultados dos testes",
+    "security": "Segurança",
+    "twoFactorAuth": "Autenticação de Dois Fatores",
+    "twoFactorAuthDesc": "Exigir 2FA para todos os usuários",
+    "sessionTimeout": "Tempo Limite da Sessão",
+    "sessionTimeoutDesc": "Desconectar automaticamente após inatividade",
+    "passwordPolicy": "Política de Senhas",
+    "passwordPolicyDesc": "Aplicar requisitos fortes de senha",
+    "dataManagement": "Gerenciamento de Dados",
+    "dataRetention": "Retenção de Dados",
+    "dataRetentionDesc": "Por quanto tempo manter o histórico e logs de execução",
+    "clearAllData": "Limpar Todos os Dados",
+    "saveChanges": "Salvar Alterações"
   }
 }

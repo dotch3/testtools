@@ -1,9 +1,10 @@
 import type { Metadata } from "next"
 import "./globals.css"
+import { APP_CONFIG } from "@/lib/config"
 
 export const metadata: Metadata = {
-  title: "TestTool",
-  description: "Test management system for QA teams",
+  title: APP_CONFIG.name,
+  description: APP_CONFIG.description,
 }
 
 export default function RootLayout({

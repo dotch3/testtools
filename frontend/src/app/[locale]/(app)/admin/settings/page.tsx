@@ -7,6 +7,7 @@ import { ArrowLeft, Globe, Bell, Lock, Database } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { APP_CONFIG } from "@/lib/config"
 
 const adminNavItems = [
   { title: "Users", href: "/admin/users" },
@@ -17,6 +18,7 @@ const adminNavItems = [
 ]
 
 export default function AdminSettingsPage() {
+  const t = useTranslations()
   const pathname = usePathname()
 
   return (
@@ -29,7 +31,7 @@ export default function AdminSettingsPage() {
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t("nav.settings")}</h1>
           <p className="text-muted-foreground mt-1">
             Application preferences and configuration
           </p>
@@ -61,16 +63,16 @@ export default function AdminSettingsPage() {
             <div className="px-4 py-3 border-b">
               <div className="flex items-center gap-2">
                 <Globe className="h-4 w-4 text-muted-foreground" />
-                <h2 className="font-semibold">General</h2>
+                <h2 className="font-semibold">{t("settings.general")}</h2>
               </div>
             </div>
             <div className="p-4 space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="org-name">Organization Name</Label>
-                <Input id="org-name" defaultValue="TestTool" />
+                <Label htmlFor="org-name">{t("settings.organizationName")}</Label>
+                <Input id="org-name" defaultValue={APP_CONFIG.name} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="timezone">Default Timezone</Label>
+                <Label htmlFor="timezone">{t("settings.defaultTimezone")}</Label>
                 <select
                   id="timezone"
                   className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
@@ -86,7 +88,7 @@ export default function AdminSettingsPage() {
                 </select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="date-format">Date Format</Label>
+                <Label htmlFor="date-format">{t("settings.dateFormat")}</Label>
                 <select
                   id="date-format"
                   className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
@@ -104,33 +106,33 @@ export default function AdminSettingsPage() {
             <div className="px-4 py-3 border-b">
               <div className="flex items-center gap-2">
                 <Bell className="h-4 w-4 text-muted-foreground" />
-                <h2 className="font-semibold">Notifications</h2>
+                <h2 className="font-semibold">{t("settings.notifications")}</h2>
               </div>
             </div>
             <div className="p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium">Email Notifications</p>
+                  <p className="font-medium">{t("settings.emailNotifications")}</p>
                   <p className="text-sm text-muted-foreground">
-                    Receive email updates on test completion
+                    {t("settings.emailNotificationsDesc")}
                   </p>
                 </div>
                 <input type="checkbox" defaultChecked className="h-4 w-4" />
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium">Execution Alerts</p>
+                  <p className="font-medium">{t("settings.executionAlerts")}</p>
                   <p className="text-sm text-muted-foreground">
-                    Get notified when tests fail
+                    {t("settings.executionAlertsDesc")}
                   </p>
                 </div>
                 <input type="checkbox" defaultChecked className="h-4 w-4" />
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium">Weekly Summary</p>
+                  <p className="font-medium">{t("settings.weeklySummary")}</p>
                   <p className="text-sm text-muted-foreground">
-                    Receive a weekly summary of test results
+                    {t("settings.weeklySummaryDesc")}
                   </p>
                 </div>
                 <input type="checkbox" className="h-4 w-4" />
@@ -142,24 +144,24 @@ export default function AdminSettingsPage() {
             <div className="px-4 py-3 border-b">
               <div className="flex items-center gap-2">
                 <Lock className="h-4 w-4 text-muted-foreground" />
-                <h2 className="font-semibold">Security</h2>
+                <h2 className="font-semibold">{t("settings.security")}</h2>
               </div>
             </div>
             <div className="p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium">Two-Factor Authentication</p>
+                  <p className="font-medium">{t("settings.twoFactorAuth")}</p>
                   <p className="text-sm text-muted-foreground">
-                    Require 2FA for all users
+                    {t("settings.twoFactorAuthDesc")}
                   </p>
                 </div>
                 <input type="checkbox" className="h-4 w-4" />
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium">Session Timeout</p>
+                  <p className="font-medium">{t("settings.sessionTimeout")}</p>
                   <p className="text-sm text-muted-foreground">
-                    Auto-logout after inactivity
+                    {t("settings.sessionTimeoutDesc")}
                   </p>
                 </div>
                 <select
@@ -174,9 +176,9 @@ export default function AdminSettingsPage() {
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium">Password Policy</p>
+                  <p className="font-medium">{t("settings.passwordPolicy")}</p>
                   <p className="text-sm text-muted-foreground">
-                    Enforce strong password requirements
+                    {t("settings.passwordPolicyDesc")}
                   </p>
                 </div>
                 <input type="checkbox" defaultChecked className="h-4 w-4" />
@@ -188,14 +190,14 @@ export default function AdminSettingsPage() {
             <div className="px-4 py-3 border-b">
               <div className="flex items-center gap-2">
                 <Database className="h-4 w-4 text-muted-foreground" />
-                <h2 className="font-semibold">Data Management</h2>
+                <h2 className="font-semibold">{t("settings.dataManagement")}</h2>
               </div>
             </div>
             <div className="p-4 space-y-4">
               <div className="space-y-2">
-                <p className="font-medium">Data Retention</p>
+                <p className="font-medium">{t("settings.dataRetention")}</p>
                 <p className="text-sm text-muted-foreground">
-                  How long to keep execution history and logs
+                  {t("settings.dataRetentionDesc")}
                 </p>
                 <select
                   className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
@@ -211,14 +213,14 @@ export default function AdminSettingsPage() {
               </div>
               <div className="pt-4 border-t">
                 <Button variant="destructive" disabled>
-                  Clear All Data
+                  {t("settings.clearAllData")}
                 </Button>
               </div>
             </div>
           </div>
 
           <div className="flex justify-end">
-            <Button>Save Changes</Button>
+            <Button>{t("settings.saveChanges")}</Button>
           </div>
         </div>
       </div>

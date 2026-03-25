@@ -8,6 +8,7 @@ import { sidebarNavigation } from "@/lib/navigation"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { useState } from "react"
 import { Menu } from "lucide-react"
+import { APP_CONFIG } from "@/lib/config"
 
 export function Sidebar() {
   const { isCollapsed, isMobileOpen, toggleCollapse, setMobileOpen } =
@@ -41,7 +42,8 @@ export function Sidebar() {
         <SheetContent side="left" className="w-72 p-0">
           <div className="flex h-14 items-center border-b px-4">
             <TestTube2 className="h-6 w-6 text-primary" />
-            <span className="ml-2 font-semibold">TestTool</span>
+            <span className="ml-2 font-semibold">{APP_CONFIG.name}</span>
+            <span className="ml-2 text-xs text-muted-foreground">v{APP_CONFIG.version}</span>
           </div>
           <SidebarNav sections={sidebarNavigation} isCollapsed={false} />
         </SheetContent>
@@ -68,7 +70,10 @@ function SidebarContent({
       >
         <TestTube2 className="h-6 w-6 text-primary" />
         {!isCollapsed && (
-          <span className="font-semibold text-lg">TestTool</span>
+          <div className="flex flex-col">
+            <span className="font-semibold text-lg leading-tight">{APP_CONFIG.name}</span>
+            <span className="text-xs text-muted-foreground">v{APP_CONFIG.version}</span>
+          </div>
         )}
       </div>
 

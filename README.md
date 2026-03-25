@@ -1,6 +1,6 @@
 # TestTool - Test Case Management System
 
-A comprehensive platform for managing test cases, test plans, test suites, and execution workflows. Designed for development and QA teams.
+A comprehensive platform for managing test cases, test plans, test suites, and execution workflows. Designed by a QA for development and QA teams.
 
 ## About
 
@@ -48,14 +48,31 @@ TestTool helps teams:
 
 ### 1. Setup Environment
 
-Choose the environment file based on how you want to run:
+Each project (root, backend, frontend) has its own environment files:
+
+| File | Use Case |
+|------|----------|
+| `.env.example` | Template with all options |
+| `.env.local` | Local development with npm |
+| `.env.podman` | Docker/Podman containers |
+
+**Setup for each project:**
 
 ```bash
-# Option A: Local development (npm run)
+# Root (for Docker Compose)
 cp .env.local .env
-
-# Option B: Docker/Podman containers
+# or
 cp .env.podman .env
+
+# Backend
+cp backend/.env.local backend/.env
+# or
+cp backend/.env.podman backend/.env
+
+# Frontend
+cp frontend/.env.local frontend/.env
+# or
+cp frontend/.env.podman frontend/.env
 ```
 
 ### 2. Start Infrastructure
@@ -109,11 +126,17 @@ Password: changeme123!
 
 ### Environment Files
 
-| File | Use Case |
-|------|----------|
-| `.env.local` | Local development with npm |
-| `.env.podman` | Docker/Podman containers |
-| `.env.example` | Template with all options |
+Each project has its own environment files:
+
+| Location | Files |
+|----------|-------|
+| Root | `.env.local`, `.env.podman` (for Docker Compose) |
+| Backend | `.env.local`, `.env.podman` (for backend service) |
+| Frontend | `.env.local`, `.env.podman` (for Next.js) |
+
+Key differences between local and podman:
+- **Local**: Uses `localhost` for services
+- **Podman**: Uses Docker service names (`testtool-postgres`, `testtool-redis`)
 
 ## Documentation
 

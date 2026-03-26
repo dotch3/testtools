@@ -16,6 +16,7 @@ import {
   Trash2,
   MoreHorizontal,
   UserPlus,
+  Mail,
 } from "lucide-react"
 import {
   Dialog,
@@ -40,6 +41,7 @@ export function UsersTable() {
   const [error, setError] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [createMode, setCreateMode] = useState<"create" | "invite">("create")
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [createForm, setCreateForm] = useState<CreateUserInput>({
     email: "",
@@ -71,8 +73,9 @@ export function UsersTable() {
 
   const handleCreateUser = async () => {
     try {
+      const endpoint = createMode === "invite" ? "/admin/users/invite" : "/admin/users"
       const newUser = await api.post<{ id: string; email: string }>(
-        "/admin/users",
+        endpoint,
         createForm
       )
       setUsers([
@@ -93,12 +96,17 @@ export function UsersTable() {
 
   const handleUpdateUser = async (user: User, updates: UpdateUserInput) => {
     try {
-      await api.patch(`/admin/users/${user.id}`, updates)
+      const result = await api.patch<{ id: string; email: string; name?: string }>(
+        `/admin/users/${user.id}`,
+        updates
+      )
       setUsers(
         users.map((u) =>
           u.id === user.id
             ? {
                 ...u,
+                ...(updates.name !== undefined && { name: updates.name }),
+                ...(updates.email !== undefined && { email: updates.email }),
                 ...(updates.roleId && {
                   role: { ...u.role, id: updates.roleId },
                 }),
@@ -160,9 +168,13 @@ export function UsersTable() {
             className="pl-9"
           />
         </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)}>
+        <Button onClick={() => { setCreateMode("create"); setIsCreateDialogOpen(true) }}>
           <UserPlus className="mr-2 h-4 w-4" />
           Add User
+        </Button>
+        <Button variant="outline" onClick={() => { setCreateMode("invite"); setIsCreateDialogOpen(true) }}>
+          <Mail className="mr-2 h-4 w-4" />
+          Invite
         </Button>
       </div>
 
@@ -270,13 +282,16 @@ export function UsersTable() {
         </div>
       )}
 
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+      <Dialog open={isCreateDialogOpen} onOpenChange={(open) => { setIsCreateDialogOpen(open); if (!open) setCreateMode("create") }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add New User</DialogTitle>
+            <DialogTitle>
+              {createMode === "invite" ? "Invite User by Email" : "Add New User"}
+            </DialogTitle>
             <DialogDescription>
-              Create a new user account. They will receive an email with login
-              instructions.
+              {createMode === "invite"
+                ? "Send an invitation email to the user. They will be able to set their password."
+                : "Create a new user account. They will receive login instructions."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -303,18 +318,20 @@ export function UsersTable() {
                 placeholder="John Doe"
               />
             </div>
-            <div>
-              <Label htmlFor="password">Temporary Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={createForm.password}
-                onChange={(e) =>
-                  setCreateForm({ ...createForm, password: e.target.value })
-                }
-                placeholder="Leave blank to generate"
-              />
-            </div>
+            {createMode === "create" && (
+              <div>
+                <Label htmlFor="password">Temporary Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={createForm.password}
+                  onChange={(e) =>
+                    setCreateForm({ ...createForm, password: e.target.value })
+                  }
+                  placeholder="Leave blank to generate"
+                />
+              </div>
+            )}
             <div>
               <Label htmlFor="role">Role *</Label>
               <select
@@ -336,7 +353,7 @@ export function UsersTable() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setIsCreateDialogOpen(false)}
+              onClick={() => { setIsCreateDialogOpen(false); setCreateMode("create") }}
             >
               Cancel
             </Button>
@@ -344,7 +361,7 @@ export function UsersTable() {
               onClick={handleCreateUser}
               disabled={!createForm.email || !createForm.roleId}
             >
-              Create User
+              {createMode === "invite" ? "Send Invitation" : "Create User"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -359,13 +376,36 @@ export function UsersTable() {
           {selectedUser && (
             <div className="space-y-4">
               <div>
+                <Label htmlFor="edit-name">Name</Label>
+                <Input
+                  id="edit-name"
+                  value={selectedUser.name || ""}
+                  onChange={(e) =>
+                    setSelectedUser({ ...selectedUser, name: e.target.value })
+                  }
+                  placeholder="John Doe"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-email">Email</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={selectedUser.email}
+                  onChange={(e) =>
+                    setSelectedUser({ ...selectedUser, email: e.target.value })
+                  }
+                  placeholder="user@testtools.com"
+                />
+              </div>
+              <div>
                 <Label htmlFor="edit-role">Role</Label>
                 <select
                   id="edit-role"
                   value={selectedUser.role.id}
                   onChange={(e) => {
-                    handleUpdateUser(selectedUser, { roleId: e.target.value })
-                    setSelectedUser({ ...selectedUser, role: { ...selectedUser.role, id: e.target.value } })
+                    const newRoleId = e.target.value
+                    setSelectedUser({ ...selectedUser, role: { ...selectedUser.role, id: newRoleId } })
                   }}
                   className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
                 >
@@ -378,8 +418,25 @@ export function UsersTable() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSelectedUser(null)}>
-              Close
+            <Button
+              variant="outline"
+              onClick={() => setSelectedUser(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedUser) {
+                  handleUpdateUser(selectedUser, {
+                    name: selectedUser.name,
+                    email: selectedUser.email,
+                    roleId: selectedUser.role.id,
+                  })
+                  setSelectedUser(null)
+                }
+              }}
+            >
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>

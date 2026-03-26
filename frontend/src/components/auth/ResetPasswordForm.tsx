@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, Suspense } from "react"
 import { useTranslations } from "next-intl"
 import { useRouter, useSearchParams } from "next/navigation"
 import { api } from "@/lib/api"
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { PasswordInput } from "./PasswordInput"
 
-export function ResetPasswordForm() {
+function ResetPasswordFormContent() {
   const t = useTranslations("auth")
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -102,5 +102,13 @@ export function ResetPasswordForm() {
         {isLoading ? t("loading") : t("confirm")}
       </Button>
     </form>
+  )
+}
+
+export function ResetPasswordForm() {
+  return (
+    <Suspense fallback={<div className="p-4">Loading...</div>}>
+      <ResetPasswordFormContent />
+    </Suspense>
   )
 }

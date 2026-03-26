@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, TestTube2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useSidebarState } from "@/hooks/useSidebarState"
 import { SidebarNav } from "./SidebarNav"
+import { ProjectSelector } from "./ProjectSelector"
 import { sidebarNavigation } from "@/lib/navigation"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { useState } from "react"
@@ -11,6 +12,7 @@ import { Menu } from "lucide-react"
 import { APP_CONFIG } from "@/lib/config"
 import Link from "next/link"
 import { useLocale } from "next-intl"
+import { Separator } from "@/components/ui/separator"
 
 export function Sidebar() {
   const { isCollapsed, toggleCollapse } = useSidebarState()
@@ -49,6 +51,10 @@ export function Sidebar() {
               <span className="text-xs text-muted-foreground">v{APP_CONFIG.version}</span>
             </Link>
           </div>
+          <div className="p-2">
+            <ProjectSelector />
+          </div>
+          <Separator />
           <SidebarNav sections={sidebarNavigation} isCollapsed={false} />
         </SheetContent>
       </Sheet>
@@ -87,6 +93,23 @@ function SidebarContent({
           )}
         </Link>
       </div>
+
+      {!isCollapsed && (
+        <div className="p-2 border-b">
+          <h4 className="mb-2 px-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            Projects
+          </h4>
+          <ProjectSelector />
+        </div>
+      )}
+
+      {isCollapsed && (
+        <div className="p-2 flex justify-center border-b">
+          <ProjectSelector />
+        </div>
+      )}
+
+      <Separator />
 
       <SidebarNav sections={sidebarNavigation} isCollapsed={isCollapsed} />
 

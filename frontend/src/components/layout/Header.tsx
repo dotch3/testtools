@@ -4,7 +4,6 @@ import { Bell, Search, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "./ThemeToggle"
 import { ProfileDropdown } from "./ProfileDropdown"
-import { ProjectSelector } from "./ProjectSelector"
 import { Breadcrumbs } from "./Breadcrumbs"
 import { AboutDialog } from "./AboutDialog"
 import { useState } from "react"
@@ -15,8 +14,6 @@ export function Header() {
   return (
     <>
       <header className="flex h-14 items-center gap-4 border-b bg-background/95 backdrop-blur px-6">
-        <ProjectSelector />
-
         <div className="flex-1">
           <Breadcrumbs />
         </div>

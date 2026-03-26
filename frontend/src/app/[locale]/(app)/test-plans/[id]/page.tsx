@@ -13,6 +13,17 @@ import { SuiteTree, type SuiteNode } from "@/components/test-suites/SuiteTree"
 import { TestCaseList, type TestCaseRow } from "@/components/test-cases/TestCaseList"
 import { NoProjectSelected } from "@/components/ui/NoProjectSelected"
 import { Plus, FolderKanban } from "lucide-react"
+import { toast } from "sonner"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 export default function TestPlanDetailPage() {
   const params = useParams()
@@ -28,6 +39,7 @@ export default function TestPlanDetailPage() {
   const [selectedSuite, setSelectedSuite] = useState<SuiteNode | null>(null)
   const [cases, setCases] = useState<TestCaseRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isAddSuiteOpen, setIsAddSuiteOpen] = useState(false)
 
   useEffect(() => {
     if (!selectedProject) return
@@ -72,6 +84,18 @@ export default function TestPlanDetailPage() {
 
   const handleSelectSuite = (suite: SuiteNode) => {
     setSelectedSuite(suite)
+  }
+
+  const handleCreateSuite = async (data: { name: string; description: string }) => {
+    try {
+      await api.post(`/test-plans/${planId}/suites`, data)
+      await loadSuites()
+      setIsAddSuiteOpen(false)
+      toast.success("Test suite created successfully")
+    } catch (err) {
+      console.error("Failed to create suite:", err)
+      toast.error("Failed to create test suite")
+    }
   }
 
   if (!selectedProject) {
@@ -151,7 +175,7 @@ export default function TestPlanDetailPage() {
 
         <TabsContent value="suites" className="space-y-4">
           <div className="flex justify-end">
-            <Button>
+            <Button onClick={() => setIsAddSuiteOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Add Suite
             </Button>
@@ -209,6 +233,55 @@ export default function TestPlanDetailPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={isAddSuiteOpen} onOpenChange={setIsAddSuiteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Test Suite</DialogTitle>
+            <DialogDescription>
+              Create a new test suite within this test plan.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              const formData = new FormData(e.currentTarget)
+              handleCreateSuite({
+                name: formData.get("name") as string,
+                description: formData.get("description") as string,
+              })
+            }}
+          >
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="suite-name">
+                  Suite Name <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="suite-name"
+                  name="name"
+                  placeholder="e.g., Authentication Tests"
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="suite-description">Description</Label>
+                <Input
+                  id="suite-description"
+                  name="description"
+                  placeholder="Optional description..."
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsAddSuiteOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">Create Suite</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

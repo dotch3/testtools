@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import Link from "next/link"
 import {
   Plus,
   Search,
@@ -12,6 +13,7 @@ import {
   AlertCircle,
   Loader2,
 } from "lucide-react"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import { useProject } from "@/contexts/ProjectContext"
 import { HierarchySelector, HierarchyBreadcrumb } from "@/components/hierarchy/HierarchySelector"
@@ -20,16 +22,16 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { LoadingSpinner } from "@/components/ui/loading"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationPrevious,
+  PaginationNext,
+  PaginationInfo,
+} from "@/components/ui/pagination"
 import {
   Dialog,
   DialogContent,
@@ -47,6 +49,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
+import { AssigneeDialog } from "@/components/test-cases/AssigneeDialog"
 
 
 interface TestCase {
@@ -54,18 +57,25 @@ interface TestCase {
   title: string
   description?: string
   preconditions?: string
+  notes?: string
   steps?: Array<{ order: number; action: string; expectedResult: string }>
   priority: { value: string; label: string; color: string }
   type: { value: string; label: string }
   suite: { id: string; name: string; testPlan?: { id: string; name: string } }
   status: string
   tags: Array<{ id: string; name: string; color: string }>
-  assignees: Array<{ id: string; name?: string; email: string }>
+  assignees: Assignee[]
   lastExecution?: {
     status: { value: string; label: string; color: string }
     executedAt: string
   }
   _count: { executions: number }
+}
+
+interface Assignee {
+  id: string
+  name?: string
+  email: string
 }
 
 interface HierarchySelection {
@@ -90,6 +100,35 @@ const statusColors: Record<string, string> = {
   skipped: "bg-purple-500/10 text-purple-600 border-purple-500/20",
 }
 
+const ITEMS_PER_PAGE = 20
+
+function TestCasesSkeleton() {
+  return (
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {[1, 2, 3, 4, 5, 6].map((i) => (
+        <Card key={i}>
+          <CardContent className="p-5 space-y-3">
+            <div className="flex justify-between">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-5 w-16" />
+            </div>
+            <Skeleton className="h-5 w-full" />
+            <Skeleton className="h-3 w-3/4" />
+            <div className="flex gap-2">
+              <Skeleton className="h-5 w-12" />
+              <Skeleton className="h-5 w-16" />
+            </div>
+            <div className="flex justify-between">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
 export default function TestCasesPage() {
   const { selectedProject } = useProject()
   const [cases, setCases] = useState<TestCase[]>([])
@@ -99,6 +138,12 @@ export default function TestCasesPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [hierarchySelection, setHierarchySelection] = useState<HierarchySelection | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+
+  const formatTestCaseId = (id: string) => {
+    return `TC-${id.substring(0, 8).toUpperCase()}`
+  }
 
   const loadCases = useCallback(async () => {
     if (!hierarchySelection) return
@@ -107,7 +152,12 @@ export default function TestCasesPage() {
     setError(null)
     
     try {
-      const data = await api.get<any[]>(`/suites/${hierarchySelection.suiteId}/cases`)
+      const params = new URLSearchParams({
+        page: String(currentPage),
+        limit: String(ITEMS_PER_PAGE),
+      })
+      
+      const data = await api.get<any[]>(`/suites/${hierarchySelection.suiteId}/cases?${params}`)
       
       const mappedCases: TestCase[] = data.map((tc: any) => ({
         id: tc.id,
@@ -134,6 +184,7 @@ export default function TestCasesPage() {
       }))
       
       setCases(mappedCases)
+      setTotalCount(data.length === ITEMS_PER_PAGE ? (currentPage * ITEMS_PER_PAGE) + 1 : (currentPage - 1) * ITEMS_PER_PAGE + data.length)
     } catch (err) {
       console.error("Failed to load cases:", err)
       setError(err instanceof Error ? err.message : "Failed to load test cases")
@@ -141,7 +192,7 @@ export default function TestCasesPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [hierarchySelection])
+  }, [hierarchySelection, currentPage])
 
   useEffect(() => {
     loadCases()
@@ -149,9 +200,10 @@ export default function TestCasesPage() {
 
   const handleHierarchySelect = (planId: string, planName: string, suiteId: string, suiteName: string) => {
     setHierarchySelection({ planId, planName, suiteId, suiteName })
+    setCurrentPage(1)
   }
 
-  const handleCreateCase = async (data: { title: string; priorityId: string; typeId: string; description?: string; preconditions?: string; steps?: Array<{ action: string; expectedResult: string }> }) => {
+  const handleCreateCase = async (data: { title: string; priorityId: string; typeId: string; description?: string; preconditions?: string; notes?: string; steps?: Array<{ action: string; expectedResult: string }> }) => {
     if (!hierarchySelection) return
     
     setIsCreating(true)
@@ -162,13 +214,13 @@ export default function TestCasesPage() {
         typeId: data.typeId,
         description: data.description,
         preconditions: data.preconditions,
+        notes: data.notes,
         steps: data.steps,
       })
-      setIsCreateOpen(false)
       loadCases()
     } catch (err) {
       console.error("Failed to create case:", err)
-      alert(err instanceof Error ? err.message : "Failed to create test case")
+      throw err
     } finally {
       setIsCreating(false)
     }
@@ -178,12 +230,17 @@ export default function TestCasesPage() {
     if (!confirm("Are you sure you want to delete this test case?")) return
     
     try {
-      await api.delete(`/test-cases/${caseId}`)
+      await api.delete(`/cases/${caseId}`)
       setCases(cases.filter(c => c.id !== caseId))
+      toast.success("Test case deleted successfully")
     } catch (err) {
       console.error("Failed to delete case:", err)
-      alert(err instanceof Error ? err.message : "Failed to delete test case")
+      toast.error(err instanceof Error ? err.message : "Failed to delete test case")
     }
+  }
+
+  const handleAssigneesChange = (caseId: string, newAssignees: Assignee[]) => {
+    setCases(cases.map(c => c.id === caseId ? { ...c, assignees: newAssignees } : c))
   }
 
   const filteredCases = cases.filter((c) => {
@@ -192,6 +249,8 @@ export default function TestCasesPage() {
     return c.title.toLowerCase().includes(query) || 
            c.description?.toLowerCase().includes(query)
   })
+
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE)
 
   if (!selectedProject) {
     return (
@@ -283,105 +342,172 @@ export default function TestCasesPage() {
       )}
 
       {isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <LoadingSpinner text="Loading test cases..." />
-        </div>
+        <TestCasesSkeleton />
       ) : filteredCases.length === 0 ? (
         <Card>
-          <CardContent className="p-12 text-center">
-            <TestTubes className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium mb-2">No test cases</h3>
-            <p className="text-sm text-muted-foreground mb-6">
-              {searchQuery ? "No test cases match your search" : "Create your first test case for this suite"}
-            </p>
-            {!searchQuery && (
-              <CreateCaseDialog 
-                onSubmit={handleCreateCase}
-                isCreating={isCreating}
-                trigger={
-                  <Button>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create Test Case
-                  </Button>
-                }
-              />
-            )}
+          <CardContent className="p-0">
+            <EmptyState
+              icon={<TestTubes className="h-8 w-8 text-muted-foreground" />}
+              title="No test cases yet"
+              description={searchQuery ? "No test cases match your search" : "Create your first test case to get started"}
+              action={!searchQuery && (
+                <CreateCaseDialog 
+                  onSubmit={handleCreateCase}
+                  isCreating={isCreating}
+                  trigger={
+                    <Button>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Create Test Case
+                    </Button>
+                  }
+                />
+              )}
+            />
           </CardContent>
         </Card>
       ) : (
-        <div className="rounded-lg border bg-card overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[40%]">Title</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Executions</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredCases.map((caseItem) => (
-                <TableRow key={caseItem.id}>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">{caseItem.title}</p>
-                      {caseItem.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-1">
-                          {caseItem.description}
-                        </p>
+        <>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {filteredCases.map((caseItem) => {
+              const status = caseItem.lastExecution?.status
+              return (
+                <Card
+                  key={caseItem.id}
+                  className="transition-all hover:shadow-md hover:border-primary/50 cursor-pointer group"
+                  onClick={() => {
+                    // TODO: Open test case detail/edit
+                  }}
+                >
+                  <CardContent className="p-5">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-mono text-muted-foreground">
+                            {formatTestCaseId(caseItem.id)}
+                          </span>
+                        </div>
+                        <h3 className="font-medium text-sm line-clamp-2 group-hover:text-primary transition-colors">
+                          {caseItem.title}
+                        </h3>
+                        {caseItem.description && (
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                            {caseItem.description}
+                          </p>
+                        )}
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem disabled>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeleteCase(caseItem.id)
+                            }}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${
+                          priorityColors[caseItem.priority.value] || "border-gray-500 text-gray-500"
+                        }`}
+                      >
+                        {caseItem.priority.label}
+                      </Badge>
+                      <Badge variant="outline" className="text-xs">
+                        {caseItem.type.label}
+                      </Badge>
+                      {status && (
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${
+                            statusColors[status.value] || statusColors.not_run
+                          }`}
+                        >
+                          {status.label}
+                        </Badge>
                       )}
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={priorityColors[caseItem.priority.value] || "border-gray-500 text-gray-500"}>
-                      {caseItem.priority.label}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm">{caseItem.type.label}</span>
-                  </TableCell>
-                  <TableCell>
-                    {caseItem.lastExecution ? (
-                      <Badge variant="outline" className={statusColors[caseItem.lastExecution.status.value] || statusColors.not_run}>
-                        {caseItem.lastExecution.status.label}
-                      </Badge>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm">{caseItem._count.executions}</span>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem disabled>
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem 
-                          onClick={() => handleDeleteCase(caseItem.id)}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        {caseItem.assignees.length > 0 ? (
+                          <div className="flex items-center gap-1">
+                            <div className="flex -space-x-1">
+                              {caseItem.assignees.slice(0, 2).map((assignee) => (
+                                <Avatar
+                                  key={assignee.id}
+                                  className="h-5 w-5 border border-background"
+                                >
+                                  <AvatarFallback className="text-[8px]">
+                                    {(assignee.name || assignee.email).charAt(0).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                              ))}
+                            </div>
+                            {caseItem.assignees.length > 2 && (
+                              <span>+{caseItem.assignees.length - 2}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span>Unassigned</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span>{caseItem._count.executions} executions</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex justify-center">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious 
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                  <PaginationItem>
+                    <PaginationInfo currentPage={currentPage} totalPages={totalPages} />
+                  </PaginationItem>
+                  <PaginationItem>
+                    <PaginationNext 
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
@@ -392,7 +518,7 @@ function CreateCaseDialog({
   isCreating,
   trigger,
 }: {
-  onSubmit: (data: { title: string; priorityId: string; typeId: string; description?: string; preconditions?: string; steps?: Array<{ action: string; expectedResult: string }> }) => Promise<void>
+  onSubmit: (data: { title: string; priorityId: string; typeId: string; description?: string; preconditions?: string; notes?: string; steps?: Array<{ action: string; expectedResult: string }> }) => Promise<void>
   isCreating: boolean
   trigger: React.ReactNode
 }) {
@@ -400,12 +526,26 @@ function CreateCaseDialog({
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [preconditions, setPreconditions] = useState("")
+  const [notes, setNotes] = useState("")
   const [priorityId, setPriorityId] = useState("seed-test_priority-medium")
   const [typeId, setTypeId] = useState("seed-test_type-manual")
   const [steps, setSteps] = useState<Array<{ action: string; expectedResult: string }>>([
     { action: "", expectedResult: "" }
   ])
   const [error, setError] = useState("")
+
+  useEffect(() => {
+    if (!isOpen) {
+      setTitle("")
+      setDescription("")
+      setPreconditions("")
+      setNotes("")
+      setPriorityId("seed-test_priority-medium")
+      setTypeId("seed-test_type-manual")
+      setSteps([{ action: "", expectedResult: "" }])
+      setError("")
+    }
+  }, [isOpen])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -434,14 +574,10 @@ function CreateCaseDialog({
         typeId,
         description: description.trim() || undefined,
         preconditions: preconditions.trim() || undefined,
+        notes: notes.trim() || undefined,
         steps: validSteps.length > 0 ? validSteps : undefined,
       })
-      setTitle("")
-      setDescription("")
-      setPreconditions("")
-      setPriorityId("seed-test_priority-medium")
-      setTypeId("seed-test_type-manual")
-      setSteps([{ action: "", expectedResult: "" }])
+      toast.success("Test case created successfully")
       setIsOpen(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create test case")
@@ -517,6 +653,17 @@ function CreateCaseDialog({
                 onChange={(e) => setPreconditions(e.target.value)}
                 placeholder="Any setup or prerequisites needed..."
                 className="min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="notes">Notes / Observations</Label>
+              <textarea
+                id="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Add any notes, observations, or attachments references..."
+                className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
             </div>
 

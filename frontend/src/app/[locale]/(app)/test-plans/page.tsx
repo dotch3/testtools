@@ -15,6 +15,7 @@ import {
   XCircle,
   FolderKanban,
 } from "lucide-react"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import { useProject } from "@/contexts/ProjectContext"
 import { Button } from "@/components/ui/button"
@@ -22,6 +23,7 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
+import { EmptyState } from "@/components/ui/empty-state"
 import { NoProjectSelected } from "@/components/ui/NoProjectSelected"
 import {
   Dialog,
@@ -46,6 +48,7 @@ interface TestPlan {
   name: string
   description?: string
   status: string
+  statusId?: string
   createdAt: string
   _count: {
     suites: number
@@ -62,6 +65,7 @@ interface TestPlan {
 interface TestPlanFormData {
   name: string
   description: string
+  statusId: string
 }
 
 interface FormErrors {
@@ -73,6 +77,33 @@ const statusColors: Record<string, { bg: string; text: string; label: string }> 
   draft: { bg: "bg-gray-500/10", text: "text-gray-600", label: "Draft" },
   archived: { bg: "bg-yellow-500/10", text: "text-yellow-600", label: "Archived" },
   completed: { bg: "bg-blue-500/10", text: "text-blue-600", label: "Completed" },
+}
+
+function TestPlansSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <Card key={i}>
+            <CardContent className="p-6 space-y-4">
+              <div className="flex justify-between">
+                <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-6 w-16" />
+              </div>
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <div className="flex gap-4">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-20" />
+              </div>
+              <Skeleton className="h-10 w-full" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function CreateTestPlanDialog({
@@ -88,6 +119,7 @@ function CreateTestPlanDialog({
   const [formData, setFormData] = useState<TestPlanFormData>({
     name: "",
     description: "",
+    statusId: "seed-test_plan_status-active",
   })
   const [errors, setErrors] = useState<FormErrors>({})
 
@@ -111,7 +143,7 @@ function CreateTestPlanDialog({
     try {
       await onSubmit(formData)
       setIsOpen(false)
-      setFormData({ name: "", description: "" })
+      setFormData({ name: "", description: "", statusId: "seed-test_plan_status-active" })
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create test plan")
     } finally {
@@ -185,49 +217,143 @@ function CreateTestPlanDialog({
   )
 }
 
-function TestPlansSkeleton() {
-  return (
-    <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {[1, 2, 3].map((i) => (
-          <Card key={i}>
-            <CardContent className="p-6 space-y-4">
-              <div className="flex justify-between">
-                <Skeleton className="h-6 w-48" />
-                <Skeleton className="h-6 w-16" />
-              </div>
-              <Skeleton className="h-4 w-full" />
-              <div className="flex gap-4">
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-4 w-20" />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
-  )
-}
+function EditTestPlanDialog({
+  plan,
+  onSubmit,
+  children,
+}: {
+  plan: TestPlan
+  onSubmit: (data: TestPlanFormData) => Promise<void>
+  children: React.ReactNode
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState("")
+  const [formData, setFormData] = useState<TestPlanFormData>({
+    name: plan.name,
+    description: plan.description || "",
+    statusId: plan.statusId || "seed-test_plan_status-active",
+  })
+  const [errors, setErrors] = useState<FormErrors>({})
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+  useEffect(() => {
+    setFormData({
+      name: plan.name,
+      description: plan.description || "",
+      statusId: plan.statusId || "seed-test_plan_status-active",
+    })
+  }, [plan])
+
+  const validate = (): boolean => {
+    const newErrors: FormErrors = {}
+    if (!formData.name.trim()) {
+      newErrors.name = "Test plan name is required"
+    } else if (formData.name.length < 3) {
+      newErrors.name = "Name must be at least 3 characters"
+    }
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    if (!validate()) return
+
+    setIsSubmitting(true)
+    try {
+      await onSubmit(formData)
+      setIsOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update test plan")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const statusOptions = [
+    { value: "seed-test_plan_status-draft", label: "Draft" },
+    { value: "seed-test_plan_status-active", label: "Active" },
+    { value: "seed-test_plan_status-completed", label: "Completed" },
+    { value: "seed-test_plan_status-archived", label: "Archived" },
+  ]
+
   return (
-    <Card>
-      <CardContent className="p-12 text-center">
-        <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-          <FolderKanban className="h-8 w-8 text-muted-foreground" />
-        </div>
-        <h3 className="text-lg font-medium mb-2">No test plans yet</h3>
-        <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-          Create your first test plan to start organizing and managing your test
-          cases effectively.
-        </p>
-        <Button onClick={onCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Create Test Plan
-        </Button>
-      </CardContent>
-    </Card>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <div onClick={() => setIsOpen(true)}>{children}</div>
+      <DialogContent>
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Edit Test Plan</DialogTitle>
+            <DialogDescription>
+              Update the test plan details.
+            </DialogDescription>
+          </DialogHeader>
+
+          {error && (
+            <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm">
+              {error}
+            </div>
+          )}
+
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-name">
+                Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="edit-name"
+                value={formData.name}
+                onChange={(e) => {
+                  setFormData({ ...formData, name: e.target.value })
+                  if (errors.name) setErrors({ ...errors, name: undefined })
+                }}
+                placeholder="e.g., API Regression Suite"
+                className={errors.name ? "border-destructive" : ""}
+              />
+              {errors.name && (
+                <p className="text-sm text-destructive">{errors.name}</p>
+              )}
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <textarea
+                id="edit-description"
+                value={formData.description}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
+                placeholder="Describe the purpose and scope of this test plan..."
+                className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-status">Status</Label>
+              <select
+                id="edit-status"
+                value={formData.statusId}
+                onChange={(e) => setFormData({ ...formData, statusId: e.target.value })}
+                className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+              >
+                {statusOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -236,7 +362,7 @@ export default function TestPlansPage() {
   const [testPlans, setTestPlans] = useState<TestPlan[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
-  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [editingPlan, setEditingPlan] = useState<TestPlan | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const loadTestPlans = useCallback(async () => {
@@ -291,6 +417,31 @@ export default function TestPlansPage() {
       createdAt: newPlan.createdAt || new Date().toISOString(),
       _count: { suites: 0, cases: 0, executions: 0 },
     }, ...testPlans])
+    toast.success("Test plan created successfully")
+  }
+
+  const handleUpdate = async (data: TestPlanFormData) => {
+    if (!editingPlan) return
+
+    await api.patch<any>(`/test-plans/${editingPlan.id}`, {
+      name: data.name,
+      description: data.description,
+      statusId: data.statusId,
+    })
+
+    setTestPlans(testPlans.map((p) =>
+      p.id === editingPlan.id
+        ? {
+            ...p,
+            name: data.name,
+            description: data.description,
+            status: data.statusId.split('-').pop() || 'draft',
+            statusId: data.statusId,
+          }
+        : p
+    ))
+    setEditingPlan(null)
+    toast.success("Test plan updated successfully")
   }
 
   const handleDelete = async (plan: TestPlan) => {
@@ -299,9 +450,10 @@ export default function TestPlansPage() {
     try {
       await api.delete(`/test-plans/${plan.id}`)
       setTestPlans(testPlans.filter((p) => p.id !== plan.id))
+      toast.success("Test plan deleted successfully")
     } catch (err) {
       console.error("Failed to delete test plan:", err)
-      alert("Failed to delete test plan. Please try again.")
+      toast.error("Failed to delete test plan. Please try again.")
     } finally {
       setDeletingId(null)
     }
@@ -312,6 +464,8 @@ export default function TestPlansPage() {
       (p.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (p.description || "").toLowerCase().includes(searchQuery.toLowerCase())
   )
+
+  const getPlanKey = (plan: TestPlan, index: number) => plan?.id ?? `plan-${index}`
 
   if (!selectedProject) {
     return (
@@ -380,7 +534,26 @@ export default function TestPlansPage() {
       </div>
 
       {filteredPlans.length === 0 && !searchQuery ? (
-        <EmptyState onCreate={() => setIsCreateOpen(true)} />
+        <Card>
+          <CardContent className="p-0">
+            <EmptyState
+              icon={<FolderKanban className="h-8 w-8 text-muted-foreground" />}
+              title="No test plans yet"
+              description="Create your first test plan to start organizing and managing your test cases effectively."
+              action={
+                <CreateTestPlanDialog
+                  onSubmit={handleCreate}
+                  trigger={
+                    <Button>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Create Test Plan
+                    </Button>
+                  }
+                />
+              }
+            />
+          </CardContent>
+        </Card>
       ) : filteredPlans.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
@@ -400,19 +573,19 @@ export default function TestPlansPage() {
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredPlans.map((plan) => {
+          {filteredPlans.map((plan, idx) => {
             const status = statusColors[plan.status] || statusColors.draft
             return (
               <Card
-                key={plan.id}
+                key={getPlanKey(plan, idx)}
                 className="transition-all hover:shadow-md hover:border-primary/50 group"
               >
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <Link
                         href={`/test-plans/${plan.id}`}
-                        className="text-lg font-semibold hover:text-primary transition-colors"
+                        className="text-lg font-semibold hover:text-primary transition-colors line-clamp-2"
                       >
                         {plan.name}
                       </Link>
@@ -473,10 +646,12 @@ export default function TestPlansPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem disabled>
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
+                        <EditTestPlanDialog plan={plan} onSubmit={handleUpdate}>
+                          <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setEditingPlan(plan) }}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                        </EditTestPlanDialog>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           onClick={() => handleDelete(plan)}

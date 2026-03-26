@@ -120,14 +120,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(normalizeUser(data.user))
   }
 
-  const logout = () => {
+  const logout = useCallback(() => {
+    const refreshToken = localStorage.getItem("refresh_token")
     localStorage.removeItem("access_token")
     localStorage.removeItem("refresh_token")
     setUser(null)
     if (typeof window !== "undefined") {
+      api.logout(refreshToken ?? undefined).catch(() => {})
       window.location.href = "/login"
     }
-  }
+  }, [])
 
   const updateUser = (data: Partial<User>) => {
     setUser((prev) => (prev ? { ...prev, ...data } : null))

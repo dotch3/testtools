@@ -3,6 +3,7 @@ import { config } from '../../../config.js'
 import { AuthService, AuthError } from '../../../services/AuthService.js'
 import { JwtService } from '../../../services/JwtService.js'
 import { requireAuth } from '../middleware/requireAuth.js'
+import { logger } from '../../../logger.js'
 
 export async function authRoutes(app: FastifyInstance) {
   const jwtService = new JwtService(
@@ -131,9 +132,12 @@ export async function authRoutes(app: FastifyInstance) {
     },
     async (request, reply) => {
       try {
+        logger.debug({ action: 'auth.token_refresh_request' })
         const result = await authService.refreshToken(request.body.refreshToken)
+        logger.info({ action: 'auth.token_refreshed', userId: result.user.id })
         return reply.send(result)
       } catch (err) {
+        logger.error({ action: 'auth.token_refresh_error', error: err })
         if (err instanceof AuthError) {
           return reply.status(err.statusCode).send({ error: err.message })
         }
@@ -241,9 +245,11 @@ export async function authRoutes(app: FastifyInstance) {
     },
     async (request: any, reply: any) => {
       try {
+        logger.debug({ action: 'auth.me', userId: request.user?.userId })
         const userProfile = await authService.getUserProfile(request.user.userId)
         return reply.send(userProfile)
       } catch (err) {
+        logger.error({ action: 'auth.me_error', error: err })
         if (err instanceof AuthError) {
           return reply.status(err.statusCode).send({ error: err.message })
         }

@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify"
 import { testPlanService } from "../../../services/TestPlanService.js"
+import { testCaseService } from "../../../services/TestCaseService.js"
 
 export async function testPlanRoutes(app: FastifyInstance) {
   app.get(
@@ -185,6 +186,26 @@ export async function testPlanRoutes(app: FastifyInstance) {
       const { id } = request.params as { id: string }
       const cloned = await testPlanService.clone(id, user.userId, user.userId, user.roleId)
       return reply.status(201).send(cloned)
+    }
+  )
+
+  app.get<{ Params: { id: string } }>(
+    "/test-plans/:id/cases",
+    {
+      schema: {
+        tags: ["Test Plans"],
+        summary: "Get test cases for a test plan",
+        params: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+          },
+        },
+      },
+    },
+    async (request) => {
+      const { id } = request.params as { id: string }
+      return testCaseService.findByTestPlan(id)
     }
   )
 }

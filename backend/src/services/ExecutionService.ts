@@ -1,17 +1,30 @@
 import { prisma } from "../infrastructure/database/prisma.js"
-import type { TestExecution, EnumValue } from "@prisma/client"
+import type { TestExecution, EnumValue, ExecutionStepResult } from "@prisma/client"
 import { NotFoundError, BadRequestError } from "../utils/errors.js"
 
 export interface CreateExecutionData {
   testCaseId: string
   testPlanId: string
   executedById: string
+  environment?: string
+  platform?: string
 }
 
 export interface UpdateExecutionData {
   statusId?: string
   notes?: string
   durationMs?: number
+  environment?: string
+  platform?: string
+}
+
+export interface CreateStepResultData {
+  executionId: string
+  stepOrder: number
+  status: string
+  actualResult?: string
+  notes?: string
+  executedById: string
 }
 
 export class ExecutionService {
@@ -32,6 +45,8 @@ export class ExecutionService {
         testPlanId: data.testPlanId,
         executedById: data.executedById,
         statusId: draftStatus.id,
+        environment: data.environment,
+        platform: data.platform,
       },
     })
   }
@@ -49,6 +64,9 @@ export class ExecutionService {
           include: {
             bug: true,
           },
+        },
+        stepResults: {
+          orderBy: { stepOrder: "asc" },
         },
       },
     })
@@ -101,6 +119,8 @@ export class ExecutionService {
         statusId: data.statusId,
         notes: data.notes,
         durationMs: data.durationMs,
+        environment: data.environment,
+        platform: data.platform,
         executedAt: data.statusId ? new Date() : undefined,
       },
     })
@@ -131,6 +151,55 @@ export class ExecutionService {
       where: {
         bugId_executionId: { bugId, executionId },
       },
+    })
+  }
+
+  async addStepResult(data: CreateStepResultData): Promise<ExecutionStepResult> {
+    const execution = await this.findById(data.executionId)
+    if (!execution) {
+      throw new NotFoundError("Execution not found")
+    }
+
+    const existingResult = await prisma.executionStepResult.findFirst({
+      where: {
+        executionId: data.executionId,
+        stepOrder: data.stepOrder,
+      },
+    })
+
+    if (existingResult) {
+      return prisma.executionStepResult.update({
+        where: { id: existingResult.id },
+        data: {
+          status: data.status,
+          actualResult: data.actualResult,
+          notes: data.notes,
+        },
+      })
+    }
+
+    return prisma.executionStepResult.create({
+      data: {
+        executionId: data.executionId,
+        stepOrder: data.stepOrder,
+        status: data.status,
+        actualResult: data.actualResult,
+        notes: data.notes,
+        executedById: data.executedById,
+      },
+    })
+  }
+
+  async getStepResults(executionId: string): Promise<ExecutionStepResult[]> {
+    return prisma.executionStepResult.findMany({
+      where: { executionId },
+      orderBy: { stepOrder: "asc" },
+    })
+  }
+
+  async deleteStepResult(id: string): Promise<void> {
+    await prisma.executionStepResult.delete({
+      where: { id },
     })
   }
 

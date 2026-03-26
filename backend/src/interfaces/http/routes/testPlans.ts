@@ -1,7 +1,5 @@
 import type { FastifyInstance } from "fastify"
 import { testPlanService } from "../../../services/TestPlanService.js"
-import { testSuiteService } from "../../../services/TestSuiteService.js"
-import { testCaseService } from "../../../services/TestCaseService.js"
 
 export async function testPlanRoutes(app: FastifyInstance) {
   app.get(
@@ -19,8 +17,9 @@ export async function testPlanRoutes(app: FastifyInstance) {
       },
     },
     async (request) => {
+      const user = request.user!
       const { projectId } = request.params as { projectId: string }
-      return testPlanService.findByProject(projectId)
+      return testPlanService.findByProject(projectId, user.userId, user.roleId)
     }
   )
 
@@ -69,7 +68,7 @@ export async function testPlanRoutes(app: FastifyInstance) {
         startDate: body.startDate ? new Date(body.startDate) : undefined,
         endDate: body.endDate ? new Date(body.endDate) : undefined,
         createdById: user.userId,
-      })
+      }, user.userId, user.roleId)
 
       return reply.status(201).send(plan)
     }
@@ -124,6 +123,7 @@ export async function testPlanRoutes(app: FastifyInstance) {
       },
     },
     async (request) => {
+      const user = request.user!
       const { id } = request.params as { id: string }
       const body = request.body as {
         name?: string
@@ -139,7 +139,7 @@ export async function testPlanRoutes(app: FastifyInstance) {
         statusId: body.statusId,
         startDate: body.startDate ? new Date(body.startDate) : undefined,
         endDate: body.endDate ? new Date(body.endDate) : undefined,
-      })
+      }, user.userId, user.roleId)
     }
   )
 
@@ -158,8 +158,9 @@ export async function testPlanRoutes(app: FastifyInstance) {
       },
     },
     async (request, reply) => {
+      const user = request.user!
       const { id } = request.params as { id: string }
-      await testPlanService.delete(id)
+      await testPlanService.delete(id, user.userId, user.roleId)
       return reply.status(204).send()
     }
   )
@@ -182,7 +183,7 @@ export async function testPlanRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const user = request.user!
       const { id } = request.params as { id: string }
-      const cloned = await testPlanService.clone(id, user.userId)
+      const cloned = await testPlanService.clone(id, user.userId, user.userId, user.roleId)
       return reply.status(201).send(cloned)
     }
   )

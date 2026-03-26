@@ -1,7 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
-import { useTranslations } from "next-intl"
+import { useState } from "react"
 import { api } from "@/lib/api"
 import {
   Plus,
@@ -45,11 +44,15 @@ export interface TestCaseRow {
   id: string
   title: string
   description?: string
+  preconditions?: string
+  steps?: Array<{ order: number; action: string; expectedResult: string }>
   priority: {
+    value: string
     label: string
     color?: string
   }
   type: {
+    value: string
     label: string
   }
   _count?: {
@@ -60,8 +63,10 @@ export interface TestCaseRow {
 interface TestCaseFormData {
   title: string
   description: string
+  preconditions: string
   priorityId: string
   typeId: string
+  steps: Array<{ order: number; action: string; expectedResult: string }>
 }
 
 interface TestCaseFormErrors {
@@ -97,8 +102,10 @@ function TestCaseFormDialog({
   const [formData, setFormData] = useState<TestCaseFormData>({
     title: testCase?.title || "",
     description: testCase?.description || "",
-    priorityId: "",
-    typeId: "",
+    preconditions: testCase?.preconditions || "",
+    priorityId: testCase?.priority?.value || "seed-test_priority-medium",
+    typeId: testCase?.type?.value || "seed-test_type-manual",
+    steps: testCase?.steps?.map((s, i) => ({ ...s, order: i + 1 })) || [{ order: 1, action: "", expectedResult: "" }],
   })
   const [errors, setErrors] = useState<TestCaseFormErrors>({})
 
@@ -122,26 +129,49 @@ function TestCaseFormDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validate()) return
-    await onSubmit(formData)
+    const validSteps = formData.steps.filter(s => s.action.trim() || s.expectedResult.trim())
+    await onSubmit({ ...formData, steps: validSteps })
+  }
+
+  const addStep = () => {
+    setFormData({
+      ...formData,
+      steps: [...formData.steps, { order: formData.steps.length + 1, action: "", expectedResult: "" }]
+    })
+  }
+
+  const removeStep = (index: number) => {
+    if (formData.steps.length > 1) {
+      setFormData({
+        ...formData,
+        steps: formData.steps.filter((_, i) => i !== index).map((s, i) => ({ ...s, order: i + 1 }))
+      })
+    }
+  }
+
+  const updateStep = (index: number, field: "action" | "expectedResult", value: string) => {
+    const newSteps = [...formData.steps]
+    newSteps[index][field] = value
+    setFormData({ ...formData, steps: newSteps })
   }
 
   const priorities = [
-    { value: "low", label: "Low", color: "#3b82f6" },
-    { value: "medium", label: "Medium", color: "#f59e0b" },
-    { value: "high", label: "High", color: "#ef4444" },
-    { value: "critical", label: "Critical", color: "#dc2626" },
+    { value: "seed-test_priority-low", label: "Low", color: "#22c55e" },
+    { value: "seed-test_priority-medium", label: "Medium", color: "#f59e0b" },
+    { value: "seed-test_priority-high", label: "High", color: "#f97316" },
+    { value: "seed-test_priority-critical", label: "Critical", color: "#ef4444" },
   ]
 
   const types = [
-    { value: "functional", label: "Functional" },
-    { value: "integration", label: "Integration" },
-    { value: "performance", label: "Performance" },
-    { value: "security", label: "Security" },
+    { value: "seed-test_type-manual", label: "Manual" },
+    { value: "seed-test_type-automated", label: "Automated" },
+    { value: "seed-test_type-exploratory", label: "Exploratory" },
+    { value: "seed-test_type-regression", label: "Regression" },
   ]
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>
@@ -189,8 +219,21 @@ function TestCaseFormDialog({
                 onChange={(e) =>
                   setFormData({ ...formData, description: e.target.value })
                 }
-                placeholder="Describe the test case steps and expected results..."
-                className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                placeholder="Describe the test case..."
+                className="min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="preconditions">Preconditions</Label>
+              <textarea
+                id="preconditions"
+                value={formData.preconditions}
+                onChange={(e) =>
+                  setFormData({ ...formData, preconditions: e.target.value })
+                }
+                placeholder="Any setup or prerequisites needed..."
+                className="min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
             </div>
 
@@ -249,6 +292,49 @@ function TestCaseFormDialog({
                 {errors.typeId && (
                   <p className="text-sm text-destructive">{errors.typeId}</p>
                 )}
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <Label>Test Steps</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addStep}>
+                  <Plus className="mr-1 h-3 w-3" /> Add Step
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {formData.steps.map((step, index) => (
+                  <div key={index} className="flex gap-2 items-start">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-muted text-xs flex items-center justify-center mt-2">
+                      {index + 1}
+                    </span>
+                    <div className="flex-1 grid grid-cols-2 gap-2">
+                      <Input
+                        value={step.action}
+                        onChange={(e) => updateStep(index, "action", e.target.value)}
+                        placeholder="Action (e.g., Click submit)"
+                        className="text-sm"
+                      />
+                      <Input
+                        value={step.expectedResult}
+                        onChange={(e) => updateStep(index, "expectedResult", e.target.value)}
+                        placeholder="Expected result"
+                        className="text-sm"
+                      />
+                    </div>
+                    {formData.steps.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeStep(index)}
+                        className="h-8 w-8 p-0 text-destructive"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -342,7 +428,6 @@ export function TestCaseList({
   onRefresh,
   onSelect,
 }: TestCaseListProps) {
-  const t = useTranslations("common")
   const [searchQuery, setSearchQuery] = useState("")
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingCase, setEditingCase] = useState<TestCaseRow | null>(null)

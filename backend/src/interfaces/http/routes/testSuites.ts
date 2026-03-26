@@ -155,4 +155,65 @@ export async function testSuiteRoutes(app: FastifyInstance) {
       return reply.status(204).send()
     }
   )
+
+  app.post<{ Params: { id: string }; Body: { targetPlanId: string } }>(
+    "/suites/:id/copy",
+    {
+      schema: {
+        tags: ["Test Suites"],
+        summary: "Copy test suite to another plan",
+        params: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+          },
+        },
+        body: {
+          type: "object",
+          required: ["targetPlanId"],
+          properties: {
+            targetPlanId: { type: "string" },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = request.user!
+      const { id } = request.params as { id: string }
+      const { targetPlanId } = request.body as { targetPlanId: string }
+
+      const copiedSuite = await testSuiteService.copy(id, targetPlanId, user.userId)
+      return reply.status(201).send(copiedSuite)
+    }
+  )
+
+  app.patch<{ Params: { id: string }; Body: { targetPlanId: string } }>(
+    "/suites/:id/move",
+    {
+      schema: {
+        tags: ["Test Suites"],
+        summary: "Move test suite to another plan",
+        params: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+          },
+        },
+        body: {
+          type: "object",
+          required: ["targetPlanId"],
+          properties: {
+            targetPlanId: { type: "string" },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string }
+      const { targetPlanId } = request.body as { targetPlanId: string }
+
+      const movedSuite = await testSuiteService.move(id, targetPlanId)
+      return reply.send(movedSuite)
+    }
+  )
 }

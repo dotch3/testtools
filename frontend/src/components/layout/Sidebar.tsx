@@ -9,18 +9,20 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { useState } from "react"
 import { Menu } from "lucide-react"
 import { APP_CONFIG } from "@/lib/config"
+import Link from "next/link"
+import { useLocale } from "next-intl"
 
 export function Sidebar() {
-  const { isCollapsed, isMobileOpen, toggleCollapse, setMobileOpen } =
-    useSidebarState()
+  const { isCollapsed, toggleCollapse } = useSidebarState()
   const [mobileOpen, setLocalMobileOpen] = useState(false)
+  const locale = useLocale()
 
   return (
     <>
       <aside
-        className={`hidden md:flex flex-col border-r bg-card h-screen sticky top-0 transition-all duration-200 ${
+        className={`hidden md:flex flex-col h-screen sticky top-0 transition-all duration-300 ${
           isCollapsed ? "w-16" : "w-64"
-        }`}
+        } bg-sidebar-bg border-r`}
       >
         <SidebarContent
           isCollapsed={isCollapsed}
@@ -33,17 +35,19 @@ export function Sidebar() {
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden fixed bottom-4 left-4 z-50"
+            className="md:hidden fixed bottom-4 left-4 z-50 shadow-lg"
             onClick={() => setLocalMobileOpen(true)}
           >
             <Menu className="h-5 w-5" />
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="w-72 p-0">
+        <SheetContent side="left" className="w-72 p-0 bg-sidebar-bg">
           <div className="flex h-14 items-center border-b px-4">
-            <TestTube2 className="h-6 w-6 text-primary" />
-            <span className="ml-2 font-semibold">{APP_CONFIG.name}</span>
-            <span className="ml-2 text-xs text-muted-foreground">v{APP_CONFIG.version}</span>
+            <Link href={`/${locale}/dashboard`} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <TestTube2 className="h-6 w-6 text-primary" />
+              <span className="font-semibold">{APP_CONFIG.name}</span>
+              <span className="text-xs text-muted-foreground">v{APP_CONFIG.version}</span>
+            </Link>
           </div>
           <SidebarNav sections={sidebarNavigation} isCollapsed={false} />
         </SheetContent>
@@ -52,15 +56,15 @@ export function Sidebar() {
   )
 }
 
-interface SidebarContentProps {
-  isCollapsed: boolean
-  onToggleCollapse: () => void
-}
-
 function SidebarContent({
   isCollapsed,
   onToggleCollapse,
-}: SidebarContentProps) {
+}: {
+  isCollapsed: boolean
+  onToggleCollapse: () => void
+}) {
+  const locale = useLocale()
+
   return (
     <>
       <div
@@ -68,18 +72,25 @@ function SidebarContent({
           isCollapsed ? "justify-center" : "gap-2"
         }`}
       >
-        <TestTube2 className="h-6 w-6 text-primary" />
-        {!isCollapsed && (
-          <div className="flex flex-col">
-            <span className="font-semibold text-lg leading-tight">{APP_CONFIG.name}</span>
-            <span className="text-xs text-muted-foreground">v{APP_CONFIG.version}</span>
-          </div>
-        )}
+        <Link
+          href={`/${locale}/dashboard`}
+          className={`flex items-center gap-2 hover:opacity-80 transition-opacity ${
+            isCollapsed ? "" : "flex-1"
+          }`}
+        >
+          <TestTube2 className="h-6 w-6 text-primary" />
+          {!isCollapsed && (
+            <div className="flex flex-col">
+              <span className="font-semibold text-lg leading-tight">{APP_CONFIG.name}</span>
+              <span className="text-xs text-muted-foreground">v{APP_CONFIG.version}</span>
+            </div>
+          )}
+        </Link>
       </div>
 
       <SidebarNav sections={sidebarNavigation} isCollapsed={isCollapsed} />
 
-      <div className={`border-t p-2 ${isCollapsed ? "flex justify-center" : ""}`}>
+      <div className={`border-t p-2 mt-auto ${isCollapsed ? "flex justify-center" : ""}`}>
         <Button
           variant="ghost"
           size={isCollapsed ? "icon" : "default"}

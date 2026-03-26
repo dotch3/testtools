@@ -121,7 +121,7 @@ npm run dev
 
 ```
 Email:    admin@testtools.com
-Password: changeme123!
+Password: Changeme123!
 ```
 
 ### Environment Files
@@ -198,7 +198,7 @@ ENCRYPTION_KEY=64-char-hex-key
 
 # Admin (first boot)
 ADMIN_EMAIL=admin@testtools.com
-ADMIN_PASSWORD=changeme123!
+ADMIN_PASSWORD=Changeme123!
 ```
 
 See `.env.example` for all options.

@@ -1,5 +1,5 @@
 import { prisma } from "../infrastructure/database/prisma.js"
-import type { TestSuite } from "@prisma/client"
+import type { TestSuite, Prisma } from "@prisma/client"
 import { NotFoundError, BadRequestError } from "../utils/errors.js"
 
 export interface CreateSuiteData {
@@ -174,6 +174,61 @@ export class TestSuiteService {
     }
 
     return descendants
+  }
+
+  async copy(id: string, targetPlanId: string, createdById: string): Promise<TestSuite> {
+    const original = await this.findById(id)
+    if (!original) {
+      throw new NotFoundError("Suite not found")
+    }
+
+    const copiedSuite = await prisma.testSuite.create({
+      data: {
+        testPlanId: targetPlanId,
+        name: `${original.name} (Copy)`,
+        description: original.description,
+        orderIndex: original.orderIndex,
+        createdById,
+        copiedFromId: original.id,
+      },
+    })
+
+    const originalCases = await prisma.testCase.findMany({
+      where: { suiteId: id },
+    })
+
+    for (const originalCase of originalCases) {
+      await prisma.testCase.create({
+        data: {
+          suiteId: copiedSuite.id,
+          title: originalCase.title,
+          description: originalCase.description,
+          preconditions: originalCase.preconditions,
+          steps: originalCase.steps as Prisma.InputJsonValue,
+          priorityId: originalCase.priorityId,
+          typeId: originalCase.typeId,
+          automationScriptRef: originalCase.automationScriptRef,
+          createdById,
+          copiedFromId: originalCase.id,
+        },
+      })
+    }
+
+    return copiedSuite
+  }
+
+  async move(id: string, targetPlanId: string): Promise<TestSuite> {
+    const existing = await this.findById(id)
+    if (!existing) {
+      throw new NotFoundError("Suite not found")
+    }
+
+    return prisma.testSuite.update({
+      where: { id },
+      data: {
+        testPlanId: targetPlanId,
+      },
+    })
   }
 }
 

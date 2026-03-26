@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import {
   ClipboardList,
@@ -14,9 +14,13 @@ import {
   AlertTriangle,
   ArrowRight,
   Activity,
+  Loader2,
 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
+import { LoadingSpinner, LoadingPage } from "@/components/ui/loading"
+import { useProject } from "@/contexts/ProjectContext"
+import { api } from "@/lib/api"
 
 interface DashboardStats {
   testPlans: number
@@ -25,44 +29,204 @@ interface DashboardStats {
   openBugs: number
 }
 
-interface RecentExecution {
-  id: string
-  testPlan: string
-  status: "passed" | "failed" | "pending" | "running"
+interface ExecutionStats {
+  total: number
   passed: number
   failed: number
-  date: string
+  blocked: number
+  notRun: number
 }
 
-const mockStats: DashboardStats = {
-  testPlans: 12,
-  testCases: 847,
-  executionsThisWeek: 156,
-  openBugs: 23,
+interface RecentExecution {
+  id: string
+  testPlanName: string
+  status: string
+  passedCount: number
+  failedCount: number
+  executedAt: string
 }
-
-const mockRecentExecutions: RecentExecution[] = [
-  { id: "1", testPlan: "API Regression Suite", status: "passed", passed: 45, failed: 2, date: "2 hours ago" },
-  { id: "2", testPlan: "UI Smoke Tests", status: "failed", passed: 12, failed: 5, date: "5 hours ago" },
-  { id: "3", testPlan: "Login Flow Tests", status: "passed", passed: 28, failed: 0, date: "Yesterday" },
-  { id: "4", testPlan: "Payment Integration", status: "pending", passed: 0, failed: 0, date: "Today" },
-]
 
 export default function DashboardPage() {
+  const { selectedProject } = useProject()
   const [isLoading, setIsLoading] = useState(true)
   const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [executionStats, setExecutionStats] = useState<ExecutionStats | null>(null)
   const [recentExecutions, setRecentExecutions] = useState<RecentExecution[]>([])
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const loadDashboard = async () => {
-      setIsLoading(true)
-      await new Promise((resolve) => setTimeout(resolve, 800))
-      setStats(mockStats)
-      setRecentExecutions(mockRecentExecutions)
+  const loadDashboard = useCallback(async () => {
+    if (!selectedProject) {
+      setStats({ testPlans: 0, testCases: 0, executionsThisWeek: 0, openBugs: 0 })
+      setExecutionStats({ total: 0, passed: 0, failed: 0, blocked: 0, notRun: 0 })
+      setRecentExecutions([])
+      setIsLoading(false)
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const projectId = selectedProject.id
+
+      const [plans, bugs] = await Promise.all([
+        api.get<any[]>(`/projects/${projectId}/test-plans`),
+        api.get<any[]>(`/projects/${projectId}/bugs`),
+      ])
+
+      let totalCases = 0
+      const recentExecutionsData: any[] = []
+
+      for (const plan of plans) {
+        const suites = await api.get<any[]>(`/test-plans/${plan.id}/suites`)
+        
+        const flattenSuites = (items: any[]): any[] => {
+          const result: any[] = []
+          const flatten = (items: any[]) => {
+            for (const item of items) {
+              result.push(item)
+              if (item.children && item.children.length > 0) {
+                flatten(item.children)
+              }
+            }
+          }
+          flatten(items)
+          return result
+        }
+        
+        const flatSuites = flattenSuites(suites)
+        for (const suite of flatSuites) {
+          totalCases += suite._count?.cases || 0
+        }
+
+        const executions = await api.get<any[]>(`/test-plans/${plan.id}/executions`)
+        for (const exec of executions) {
+          recentExecutionsData.push({ ...exec, planName: plan.name })
+        }
+      }
+
+      recentExecutionsData.sort((a, b) => 
+        new Date(b.executedAt).getTime() - new Date(a.executedAt).getTime()
+      )
+
+      const openBugs = bugs.filter((b: any) => {
+        const status = b.status?.value || b.statusId
+        return status === "open" || status === "in_progress" || status === "reopened"
+      }).length
+
+      const passed = recentExecutionsData.filter((e: any) => {
+        const status = e.status?.value || e.statusId
+        return status === "pass"
+      }).length
+      const failed = recentExecutionsData.filter((e: any) => {
+        const status = e.status?.value || e.statusId
+        return status === "fail"
+      }).length
+      const blocked = recentExecutionsData.filter((e: any) => {
+        const status = e.status?.value || e.statusId
+        return status === "blocked"
+      }).length
+      const notRun = recentExecutionsData.filter((e: any) => {
+        const status = e.status?.value || e.statusId
+        return status === "not_run"
+      }).length
+
+      const oneWeekAgo = new Date()
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+      const thisWeekExecutions = recentExecutionsData.filter((e: any) => {
+        const execDate = new Date(e.executedAt)
+        return execDate >= oneWeekAgo
+      })
+
+      setStats({
+        testPlans: plans.length,
+        testCases: totalCases,
+        executionsThisWeek: thisWeekExecutions.length,
+        openBugs,
+      })
+
+      setExecutionStats({
+        total: recentExecutionsData.length,
+        passed,
+        failed,
+        blocked,
+        notRun,
+      })
+
+      setRecentExecutions(recentExecutionsData.slice(0, 5).map((e: any) => ({
+        id: e.id,
+        testPlanName: e.planName,
+        status: e.status?.value || e.statusId || "not_run",
+        passedCount: e.passedCount || 0,
+        failedCount: e.failedCount || 0,
+        executedAt: formatRelativeTime(new Date(e.executedAt)),
+      })))
+    } catch (err) {
+      console.error("Failed to load dashboard:", err)
+      setError(err instanceof Error ? err.message : "Failed to load dashboard data")
+    } finally {
       setIsLoading(false)
     }
+  }, [selectedProject])
+
+  useEffect(() => {
     loadDashboard()
-  }, [])
+  }, [loadDashboard])
+
+  if (!selectedProject) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">
+            Select a project to view dashboard
+          </p>
+        </div>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">Please select a project to view the dashboard</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">
+            Overview of your test management activities
+          </p>
+        </div>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center text-destructive">
+            <AlertTriangle className="h-12 w-12 mx-auto mb-4" />
+            <p>{error}</p>
+            <Button onClick={loadDashboard} className="mt-4">
+              Retry
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">
+            Overview of your test management activities
+          </p>
+        </div>
+        <LoadingPage text="Loading dashboard..." />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -79,7 +243,7 @@ export default function DashboardPage() {
           value={stats?.testPlans}
           isLoading={isLoading}
           icon={ClipboardList}
-          description="Active plans"
+          description="Total plans"
           href="/test-plans"
           color="blue"
         />
@@ -117,7 +281,7 @@ export default function DashboardPage() {
           executions={recentExecutions}
           isLoading={isLoading}
         />
-        <ExecutionStatusCard isLoading={isLoading} />
+        <ExecutionStatusCard stats={executionStats} isLoading={isLoading} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -142,6 +306,20 @@ export default function DashboardPage() {
       </div>
     </div>
   )
+}
+
+function formatRelativeTime(date: Date): string {
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+
+  if (diffMins < 1) return "Just now"
+  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffDays < 7) return `${diffDays}d ago`
+  return date.toLocaleDateString()
 }
 
 const colorMap = {
@@ -199,18 +377,31 @@ function RecentExecutionsCard({
   executions: RecentExecution[]
   isLoading: boolean
 }) {
-  const statusColors = {
-    passed: "bg-green-500/10 text-green-600 border-green-500/20",
-    failed: "bg-red-500/10 text-red-600 border-red-500/20",
-    pending: "bg-gray-500/10 text-gray-600 border-gray-500/20",
-    running: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+  const statusColors: Record<string, string> = {
+    pass: "bg-green-500/10 text-green-600 border-green-500/20",
+    fail: "bg-red-500/10 text-red-600 border-red-500/20",
+    blocked: "bg-orange-500/10 text-orange-600 border-orange-500/20",
+    not_run: "bg-gray-500/10 text-gray-600 border-gray-500/20",
+    skipped: "bg-purple-500/10 text-purple-600 border-purple-500/20",
   }
 
-  const statusIcons = {
-    passed: CheckCircle2,
-    failed: XCircle,
-    pending: Clock,
-    running: Activity,
+  const statusIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+    pass: CheckCircle2,
+    fail: XCircle,
+    blocked: Clock,
+    not_run: Clock,
+    skipped: Activity,
+  }
+
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      pass: "Passed",
+      fail: "Failed",
+      blocked: "Blocked",
+      not_run: "Not Run",
+      skipped: "Skipped",
+    }
+    return labels[status] || status
   }
 
   return (
@@ -239,27 +430,27 @@ function RecentExecutionsCard({
           </div>
         ) : (
           executions.map((execution) => {
-            const StatusIcon = statusIcons[execution.status]
+            const StatusIcon = statusIcons[execution.status] || Clock
             return (
               <div
                 key={execution.id}
                 className="flex items-center justify-between py-2 border-b last:border-0"
               >
                 <div>
-                  <p className="font-medium text-sm">{execution.testPlan}</p>
-                  <p className="text-xs text-muted-foreground">{execution.date}</p>
+                  <p className="font-medium text-sm">{execution.testPlanName}</p>
+                  <p className="text-xs text-muted-foreground">{execution.executedAt}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  {execution.status !== "pending" && (
+                  {execution.status !== "not_run" && (
                     <span className="text-xs text-muted-foreground">
-                      {execution.passed}/{execution.passed + execution.failed}
+                      {execution.passedCount}/{execution.passedCount + execution.failedCount}
                     </span>
                   )}
                   <span
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border ${statusColors[execution.status]}`}
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border ${statusColors[execution.status] || statusColors.not_run}`}
                   >
                     <StatusIcon className="h-3 w-3" />
-                    {execution.status}
+                    {getStatusLabel(execution.status)}
                   </span>
                 </div>
               </div>
@@ -271,17 +462,24 @@ function RecentExecutionsCard({
   )
 }
 
-function ExecutionStatusCard({ isLoading }: { isLoading: boolean }) {
-  const total = 156
-  const passed = 142
-  const failed = 8
-  const pending = 6
-  const passRate = Math.round((passed / total) * 100)
+function ExecutionStatusCard({
+  stats,
+  isLoading,
+}: {
+  stats: ExecutionStats | null
+  isLoading: boolean
+}) {
+  const total = stats?.total || 0
+  const passed = stats?.passed || 0
+  const failed = stats?.failed || 0
+  const blocked = stats?.blocked || 0
+  const notRun = stats?.notRun || 0
+  const passRate = total > 0 ? Math.round((passed / total) * 100) : 0
 
   return (
     <div className="rounded-lg border bg-card p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="font-semibold">This Week&apos;s Status</h2>
+        <h2 className="font-semibold">Overall Status</h2>
         <TrendingUp className="h-4 w-4 text-muted-foreground" />
       </div>
 
@@ -289,6 +487,11 @@ function ExecutionStatusCard({ isLoading }: { isLoading: boolean }) {
         <div className="space-y-4">
           <Skeleton className="h-20 w-full" />
           <Skeleton className="h-4 w-full" />
+        </div>
+      ) : total === 0 ? (
+        <div className="text-center py-8">
+          <Activity className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+          <p className="text-sm text-muted-foreground">No executions yet</p>
         </div>
       ) : (
         <>
@@ -309,7 +512,7 @@ function ExecutionStatusCard({ isLoading }: { isLoading: boolean }) {
               <div className="h-2 bg-muted rounded-full overflow-hidden">
                 <div
                   className="h-full bg-green-500 rounded-full transition-all"
-                  style={{ width: `${(passed / total) * 100}%` }}
+                  style={{ width: `${total > 0 ? (passed / total) * 100 : 0}%` }}
                 />
               </div>
             </div>
@@ -325,7 +528,23 @@ function ExecutionStatusCard({ isLoading }: { isLoading: boolean }) {
               <div className="h-2 bg-muted rounded-full overflow-hidden">
                 <div
                   className="h-full bg-red-500 rounded-full transition-all"
-                  style={{ width: `${(failed / total) * 100}%` }}
+                  style={{ width: `${total > 0 ? (failed / total) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between text-sm mb-1">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-orange-600" />
+                  <span>Blocked</span>
+                </div>
+                <span className="font-medium">{blocked}</span>
+              </div>
+              <div className="h-2 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-orange-500 rounded-full transition-all"
+                  style={{ width: `${total > 0 ? (blocked / total) * 100 : 0}%` }}
                 />
               </div>
             </div>
@@ -334,14 +553,14 @@ function ExecutionStatusCard({ isLoading }: { isLoading: boolean }) {
               <div className="flex items-center justify-between text-sm mb-1">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-gray-600" />
-                  <span>Pending</span>
+                  <span>Not Run</span>
                 </div>
-                <span className="font-medium">{pending}</span>
+                <span className="font-medium">{notRun}</span>
               </div>
               <div className="h-2 bg-muted rounded-full overflow-hidden">
                 <div
                   className="h-full bg-gray-500 rounded-full transition-all"
-                  style={{ width: `${(pending / total) * 100}%` }}
+                  style={{ width: `${total > 0 ? (notRun / total) * 100 : 0}%` }}
                 />
               </div>
             </div>

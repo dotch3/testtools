@@ -51,6 +51,8 @@ model User {
   auditLogs        AuditLog[]
   refreshTokens    RefreshToken[]
   passwordResets   PasswordResetToken[]
+  suiteAssignees   TestSuiteAssignee[]
+  caseAssignees    TestCaseAssignee[]
 
   @@map("users")
 }
@@ -200,6 +202,7 @@ model Project {
   integrations    Integration[]
   customFieldDefs CustomFieldDef[]
   attachments     Attachment[]
+  tags            Tag[]
 
   @@map("projects")
 }
@@ -251,12 +254,14 @@ model TestSuite {
   name          String
   description   String?
   orderIndex    Int        @default(0)
+  copiedFromId  String?
   createdById   String
   createdBy     User       @relation(fields: [createdById], references: [id])
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
-  cases TestCase[]
+  cases       TestCase[]
+  assignees   TestSuiteAssignee[]
 
   @@map("test_suites")
 }
@@ -274,12 +279,15 @@ model TestCase {
   typeId              String
   type                EnumValue @relation("TestCaseType", fields: [typeId], references: [id])
   automationScriptRef String?
+  copiedFromId        String?
   createdById         String
   createdBy           User      @relation(fields: [createdById], references: [id])
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
   executions TestExecution[]
+  tags       TestCaseTag[]
+  assignees  TestCaseAssignee[]
 
   @@map("test_cases")
 }
@@ -298,9 +306,12 @@ model TestExecution {
   durationMs  Int?
   notes       String?
   ciRunId     String?
+  environment String?
+  platform    String?
   createdAt   DateTime  @default(now())
 
   bugs        BugTestExecution[]
+  tags        TestExecutionTag[]
 
   @@map("test_executions")
 }
@@ -311,6 +322,7 @@ model Bug {
   id          String    @id @default(uuid())
   projectId   String
   project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  testCaseId  String?
   title       String
   description String?
   statusId    String
@@ -332,6 +344,7 @@ model Bug {
   syncedAt    DateTime?
 
   executions BugTestExecution[]
+  tags       BugTag[]
 
   @@map("bugs")
 }
@@ -344,6 +357,74 @@ model BugTestExecution {
 
   @@id([bugId, executionId])
   @@map("bug_test_executions")
+}
+
+// ─── Tags ────────────────────────────────────────────────────────────────────
+
+model Tag {
+  id        String    @id @default(uuid())
+  name      String
+  color     String
+  projectId String?
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  testCases       TestCaseTag[]
+  bugs            BugTag[]
+  testExecutions  TestExecutionTag[]
+
+  @@unique([name, projectId])
+  @@map("tags")
+}
+
+model TestCaseTag {
+  testCaseId String
+  testCase   TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  tagId      String
+  tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([testCaseId, tagId])
+  @@map("test_case_tags")
+}
+
+model BugTag {
+  bugId  String
+  bug    Bug   @relation(fields: [bugId], references: [id], onDelete: Cascade)
+  tagId  String
+  tag    Tag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([bugId, tagId])
+  @@map("bug_tags")
+}
+
+model TestExecutionTag {
+  executionId String
+  execution   TestExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  tagId       String
+  tag         Tag           @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([executionId, tagId])
+  @@map("test_execution_tags")
+}
+
+model TestSuiteAssignee {
+  suiteId String
+  suite   TestSuite @relation(fields: [suiteId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([suiteId, userId])
+  @@map("test_suite_assignees")
+}
+
+model TestCaseAssignee {
+  testCaseId String
+  testCase   TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([testCaseId, userId])
+  @@map("test_case_assignees")
 }
 
 // ─── Integrations ──────────────────────────────────────────────────────────

@@ -121,6 +121,42 @@ export class TestCaseService {
     })
   }
 
+  async copy(id: string, targetSuiteId: string, createdById: string): Promise<TestCase> {
+    const original = await this.findById(id)
+    if (!original) {
+      throw new NotFoundError("Test case not found")
+    }
+
+    return prisma.testCase.create({
+      data: {
+        suiteId: targetSuiteId,
+        title: `${original.title} (Copy)`,
+        description: original.description,
+        preconditions: original.preconditions,
+        steps: original.steps as Prisma.InputJsonValue,
+        priorityId: original.priorityId,
+        typeId: original.typeId,
+        automationScriptRef: original.automationScriptRef,
+        createdById,
+        copiedFromId: original.id,
+      },
+    })
+  }
+
+  async move(id: string, targetSuiteId: string): Promise<TestCase> {
+    const existing = await this.findById(id)
+    if (!existing) {
+      throw new NotFoundError("Test case not found")
+    }
+
+    return prisma.testCase.update({
+      where: { id },
+      data: {
+        suiteId: targetSuiteId,
+      },
+    })
+  }
+
   async bulkCreate(
     suiteId: string,
     cases: Array<{

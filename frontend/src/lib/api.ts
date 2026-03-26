@@ -1,8 +1,12 @@
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1"
 
+const LOGIN_PATH = "/login"
+
 class ApiClient {
   private baseUrl: string
+  private isRefreshing = false
+  private refreshSubscribers: Array<(token: string) => void> = []
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl
@@ -13,12 +17,31 @@ class ApiClient {
     return localStorage.getItem("access_token")
   }
 
+  private onTokenRefreshed(token: string) {
+    this.refreshSubscribers.forEach(callback => callback(token))
+    this.refreshSubscribers = []
+  }
+
+  private subscribeTokenRefresh(callback: (token: string) => void) {
+    this.refreshSubscribers.push(callback)
+  }
+
+  private redirectToLogin() {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("access_token")
+      localStorage.removeItem("refresh_token")
+      window.location.href = LOGIN_PATH
+    }
+  }
+
   private async request<T>(
     method: string,
     path: string,
-    options?: RequestInit & { skipAuth?: boolean }
+    options?: RequestInit & { skipAuth?: boolean; noRedirect?: boolean }
   ): Promise<T> {
-    const { skipAuth, ...fetchOptions } = options ?? {}
+    const skipAuth = options?.skipAuth ?? false
+    const noRedirect = options?.noRedirect ?? false
+    const fetchOptions = options ?? {}
     const token = this.getToken()
 
     const headers: Record<string, string> = {
@@ -40,16 +63,50 @@ class ApiClient {
     })
 
     if (response.status === 401 && !skipAuth) {
+      if (this.isRefreshing) {
+        return new Promise((resolve, reject) => {
+          this.subscribeTokenRefresh((newToken) => {
+            headers["Authorization"] = `Bearer ${newToken}`
+            fetch(`${this.baseUrl}${path}`, {
+              ...fetchOptions,
+              method,
+              headers,
+            })
+              .then(res => res.json())
+              .then(resolve)
+              .catch(reject)
+          })
+        })
+      }
+
+      this.isRefreshing = true
       const refreshed = await this.tryRefreshToken()
+      this.isRefreshing = false
+
       if (refreshed) {
-        return this.request<T>(method, path, { ...options, skipAuth: true })
+        const newToken = localStorage.getItem("access_token")
+        this.onTokenRefreshed(newToken!)
+        headers["Authorization"] = `Bearer ${newToken}`
+        
+        const retryResponse = await fetch(`${this.baseUrl}${path}`, {
+          ...fetchOptions,
+          method,
+          headers,
+        })
+
+        if (!retryResponse.ok) {
+          const error = await retryResponse.json().catch(() => ({}))
+          throw new Error(error.error ?? error.message ?? `HTTP ${retryResponse.status}`)
+        }
+
+        return retryResponse.json()
       }
-      // Clear tokens and redirect to login
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("access_token")
-        localStorage.removeItem("refresh_token")
-        window.location.href = "/login"
+
+      if (noRedirect) {
+        throw new Error("Session expired")
       }
+
+      this.redirectToLogin()
       throw new Error("Session expired. Please login again.")
     }
 

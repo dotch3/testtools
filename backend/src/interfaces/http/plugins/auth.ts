@@ -21,10 +21,22 @@ export default fp(async (app: FastifyInstance) => {
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
     if (request.url === '/') return
     if (request.url === '/api/v1') return
-    if (request.url.startsWith('/api/v1/auth/')) return
     if (request.url.startsWith('/docs')) return
     if (request.url === '/api/v1/health') return
     if (request.url.startsWith('/api/v1/frontend-logs')) return
+    
+    const publicAuthRoutes = [
+      '/api/v1/auth/login',
+      '/api/v1/auth/register',
+      '/api/v1/auth/refresh',
+      '/api/v1/auth/forgot-password',
+      '/api/v1/auth/reset-password',
+      '/api/v1/auth/oauth/github',
+      '/api/v1/auth/oauth/google',
+      '/api/v1/auth/oauth/microsoft',
+      '/api/v1/auth/verify-email',
+    ]
+    if (publicAuthRoutes.some(route => request.url.startsWith(route))) return
 
     const authHeader = request.headers.authorization
     if (!authHeader?.startsWith('Bearer ')) {

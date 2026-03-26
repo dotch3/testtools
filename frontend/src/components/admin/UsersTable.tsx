@@ -326,9 +326,10 @@ export function UsersTable() {
                 className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
               >
                 <option value="">Select a role</option>
-                <option value="admin">Admin</option>
-                <option value="member">Member</option>
-                <option value="viewer">Viewer</option>
+                <option value="role-admin">Admin</option>
+                <option value="role-lead">Lead</option>
+                <option value="role-tester">Tester</option>
+                <option value="role-viewer">Viewer</option>
               </select>
             </div>
           </div>
@@ -368,9 +369,10 @@ export function UsersTable() {
                   }}
                   className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
                 >
-                  <option value="admin">Admin</option>
-                  <option value="member">Member</option>
-                  <option value="viewer">Viewer</option>
+                  <option value="role-admin">Admin</option>
+                  <option value="role-lead">Lead</option>
+                  <option value="role-tester">Tester</option>
+                  <option value="role-viewer">Viewer</option>
                 </select>
               </div>
             </div>

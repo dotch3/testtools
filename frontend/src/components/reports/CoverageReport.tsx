@@ -1,267 +1,249 @@
 "use client"
 
-import { useTranslations } from "next-intl"
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {
-  PieChart,
   CheckCircle,
   XCircle,
   Clock,
   Target,
   FileText,
+  Loader2,
 } from "lucide-react"
+import { api } from "@/lib/api"
+import { useProject } from "@/contexts/ProjectContext"
 
-const coverageData = {
-  overall: {
-    requirements: 45,
-    covered: 38,
-    partiallyCovered: 5,
-    uncovered: 2,
-    percentage: 84,
-  },
-  byModule: [
-    {
-      name: "Authentication",
-      requirements: 12,
-      covered: 11,
-      partiallyCovered: 1,
-      uncovered: 0,
-    },
-    {
-      name: "User Management",
-      requirements: 8,
-      covered: 8,
-      partiallyCovered: 0,
-      uncovered: 0,
-    },
-    {
-      name: "Test Plans",
-      requirements: 15,
-      covered: 12,
-      partiallyCovered: 2,
-      uncovered: 1,
-    },
-    {
-      name: "Executions",
-      requirements: 10,
-      covered: 7,
-      partiallyCovered: 2,
-      uncovered: 1,
-    },
-  ],
-  criticalPath: [
-    { id: 1, name: "User Login", status: "covered", priority: "critical" },
-    { id: 2, name: "Create Test Plan", status: "covered", priority: "critical" },
-    { id: 3, name: "Add Test Cases", status: "covered", priority: "high" },
-    { id: 4, name: "Run Execution", status: "partially", priority: "critical" },
-    { id: 5, name: "Generate Report", status: "uncovered", priority: "medium" },
-    { id: 6, name: "Export Data", status: "covered", priority: "low" },
-  ],
+interface SuiteCoverage {
+  id: string
+  name: string
+  testPlanName: string
+  totalCases: number
+  executedCases: number
+  passedCases: number
+  failedCases: number
+}
+
+interface PlanCoverage {
+  id: string
+  name: string
+  totalCases: number
+  coveredCases: number
+  coveragePercent: number
 }
 
 export function CoverageReport() {
-  const t = useTranslations("common")
+  const { selectedProject } = useProject()
+  const [isLoading, setIsLoading] = useState(true)
+  const [suiteCoverage, setSuiteCoverage] = useState<SuiteCoverage[]>([])
+  const [planCoverage, setPlanCoverage] = useState<PlanCoverage[]>([])
   const [selectedModule, setSelectedModule] = useState<string | null>(null)
 
-  const totalRequirements =
-    coverageData.overall.covered +
-    coverageData.overall.partiallyCovered +
-    coverageData.overall.uncovered
-  const fullyCovered = (coverageData.overall.covered / totalRequirements) * 100
-  const partiallyCovered =
-    (coverageData.overall.partiallyCovered / totalRequirements) * 100
-  const uncovered = (coverageData.overall.uncovered / totalRequirements) * 100
+  const loadCoverage = useCallback(async () => {
+    if (!selectedProject) return
+
+    setIsLoading(true)
+    try {
+      const plans = await api.get<any[]>(`/projects/${selectedProject.id}/test-plans`)
+      
+      const plansData: PlanCoverage[] = []
+      const suitesData: SuiteCoverage[] = []
+      let totalCases = 0
+      let coveredCases = 0
+
+      for (const plan of plans) {
+        const suites = await api.get<any[]>(`/test-plans/${plan.id}/suites`)
+        const executions = await api.get<any[]>(`/test-plans/${plan.id}/executions`)
+        
+        const flattenSuites = (items: any[]): any[] => {
+          const result: any[] = []
+          const flatten = (items: any[]) => {
+            for (const item of items) {
+              result.push(item)
+              if (item.children && item.children.length > 0) {
+                flatten(item.children)
+              }
+            }
+          }
+          flatten(items)
+          return result
+        }
+        
+        const flatSuites = flattenSuites(suites)
+        let planTotalCases = 0
+        let planCoveredCases = 0
+
+        for (const suite of flatSuites) {
+          const cases = await api.get<any[]>(`/suites/${suite.id}/cases`)
+          const suiteExecutedCases = executions.filter((e: any) => {
+            return cases.some((c: any) => c.id === e.testCaseId)
+          })
+          const suitePassedCases = suiteExecutedCases.filter((e: any) => {
+            const status = e.status?.value || e.statusId
+            return status === "pass"
+          })
+
+          planTotalCases += cases.length
+          planCoveredCases += suiteExecutedCases.length
+
+          suitesData.push({
+            id: suite.id,
+            name: suite.name,
+            testPlanName: plan.name,
+            totalCases: cases.length,
+            executedCases: suiteExecutedCases.length,
+            passedCases: suitePassedCases.length,
+            failedCases: suiteExecutedCases.length - suitePassedCases.length,
+          })
+        }
+
+        totalCases += planTotalCases
+        coveredCases += planCoveredCases
+
+        plansData.push({
+          id: plan.id,
+          name: plan.name,
+          totalCases: planTotalCases,
+          coveredCases: planCoveredCases,
+          coveragePercent: planTotalCases > 0 ? Math.round((planCoveredCases / planTotalCases) * 100) : 0,
+        })
+      }
+
+      setSuiteCoverage(suitesData)
+      setPlanCoverage(plansData)
+    } catch (err) {
+      console.error("Failed to load coverage:", err)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [selectedProject])
+
+  useEffect(() => {
+    loadCoverage()
+  }, [loadCoverage])
+
+  const totalCases = planCoverage.reduce((sum, p) => sum + p.totalCases, 0)
+  const coveredCases = planCoverage.reduce((sum, p) => sum + p.coveredCases, 0)
+  const overallCoverage = totalCases > 0 ? Math.round((coveredCases / totalCases) * 100) : 0
+
+  const selectedSuite = selectedModule 
+    ? suiteCoverage.find((s) => s.id === selectedModule) 
+    : null
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold">Requirements Coverage</h2>
+        <h2 className="text-lg font-semibold">Test Coverage</h2>
         <p className="text-sm text-muted-foreground">
-          Track which requirements have test case coverage
+          Track which test cases have been executed
         </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-lg border bg-card p-4">
-          <div className="flex items-center gap-2 mb-4">
-            <Target className="h-5 w-5 text-muted-foreground" />
-            <h3 className="font-semibold">Overall Coverage</h3>
-            <span className="ml-auto text-2xl font-bold text-primary">
-              {coverageData.overall.percentage}%
-            </span>
-          </div>
-
-          <div className="flex items-center justify-center">
-            <div className="relative w-48 h-48">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="40"
-                  fill="none"
-                  stroke="currentColor"
-                  className="text-muted"
-                  strokeWidth="12"
-                />
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="40"
-                  fill="none"
-                  stroke="currentColor"
-                  className="text-green-500"
-                  strokeWidth="12"
-                  strokeDasharray={`${fullyCovered * 2.51} 251`}
-                  strokeLinecap="round"
-                />
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="40"
-                  fill="none"
-                  stroke="currentColor"
-                  className="text-yellow-500"
-                  strokeWidth="12"
-                  strokeDasharray={`${partiallyCovered * 2.51} 251`}
-                  strokeDashoffset={`-${fullyCovered * 2.51}`}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <p className="text-3xl font-bold">
-                    {coverageData.overall.covered + coverageData.overall.partiallyCovered}
-                  </p>
-                  <p className="text-sm text-muted-foreground">/ {totalRequirements}</p>
-                </div>
-              </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="p-6 rounded-lg border bg-card">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-lg bg-blue-500/10">
+              <Target className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{overallCoverage}%</p>
+              <p className="text-sm text-muted-foreground">Overall Coverage</p>
             </div>
           </div>
+          <div className="h-2 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-500 rounded-full"
+              style={{ width: `${overallCoverage}%` }}
+            />
+          </div>
+        </div>
 
-          <div className="flex items-center justify-center gap-6 mt-4">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-green-500" />
-              <span className="text-sm text-muted-foreground">Covered</span>
+        <div className="p-6 rounded-lg border bg-card">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-green-500/10">
+              <CheckCircle className="h-5 w-5 text-green-600" />
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-yellow-500" />
-              <span className="text-sm text-muted-foreground">Partial</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-red-500" />
-              <span className="text-sm text-muted-foreground">Missing</span>
+            <div>
+              <p className="text-2xl font-bold">{coveredCases}</p>
+              <p className="text-sm text-muted-foreground">Cases Executed</p>
             </div>
           </div>
         </div>
 
-        <div className="rounded-lg border bg-card p-4">
-          <div className="flex items-center gap-2 mb-4">
-            <FileText className="h-5 w-5 text-muted-foreground" />
-            <h3 className="font-semibold">By Module</h3>
-          </div>
-
-          <div className="space-y-3">
-            {coverageData.byModule.map((module) => (
-              <div
-                key={module.name}
-                className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                  selectedModule === module.name
-                    ? "border-primary bg-primary/5"
-                    : "hover:bg-muted/50"
-                }`}
-                onClick={() =>
-                  setSelectedModule(selectedModule === module.name ? null : module.name)
-                }
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium">{module.name}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {module.covered}/{module.requirements}
-                  </span>
-                </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden flex">
-                  <div
-                    className="bg-green-500"
-                    style={{ width: `${(module.covered / module.requirements) * 100}%` }}
-                  />
-                  <div
-                    className="bg-yellow-500"
-                    style={{
-                      width: `${(module.partiallyCovered / module.requirements) * 100}%`,
-                    }}
-                  />
-                  <div
-                    className="bg-red-500"
-                    style={{
-                      width: `${(module.uncovered / module.requirements) * 100}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
+        <div className="p-6 rounded-lg border bg-card">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-muted">
+              <FileText className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{totalCases}</p>
+              <p className="text-sm text-muted-foreground">Total Cases</p>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="rounded-lg border bg-card">
-        <div className="px-4 py-3 border-b">
-          <div className="flex items-center gap-2">
-            <Target className="h-5 w-5 text-muted-foreground" />
-            <h3 className="font-semibold">Critical Path Coverage</h3>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="rounded-lg border bg-card p-6">
+          <h3 className="font-semibold mb-4">Coverage by Test Plan</h3>
+          <div className="space-y-4">
+            {planCoverage.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No test plans found</p>
+            ) : (
+              planCoverage.map((plan) => (
+                <div key={plan.id}>
+                  <div className="flex items-center justify-between text-sm mb-1">
+                    <span className="font-medium">{plan.name}</span>
+                    <span className="text-muted-foreground">
+                      {plan.coveredCases}/{plan.totalCases} ({plan.coveragePercent}%)
+                    </span>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 rounded-full transition-all"
+                      style={{ width: `${plan.coveragePercent}%` }}
+                    />
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
-        <div className="p-4">
-          <table className="w-full">
-            <thead>
-              <tr className="text-left text-sm text-muted-foreground border-b">
-                <th className="pb-2 font-medium">Requirement</th>
-                <th className="pb-2 font-medium">Status</th>
-                <th className="pb-2 font-medium">Priority</th>
-              </tr>
-            </thead>
-            <tbody>
-              {coverageData.criticalPath.map((item) => (
-                <tr key={item.id} className="border-b last:border-0">
-                  <td className="py-3 font-medium">{item.name}</td>
-                  <td className="py-3">
-                    {item.status === "covered" && (
-                      <span className="inline-flex items-center gap-1 text-green-600">
-                        <CheckCircle className="h-4 w-4" />
-                        Covered
-                      </span>
-                    )}
-                    {item.status === "partially" && (
-                      <span className="inline-flex items-center gap-1 text-yellow-600">
-                        <Clock className="h-4 w-4" />
-                        Partial
-                      </span>
-                    )}
-                    {item.status === "uncovered" && (
-                      <span className="inline-flex items-center gap-1 text-red-600">
-                        <XCircle className="h-4 w-4" />
-                        Missing
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3">
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        item.priority === "critical"
-                          ? "bg-red-100 text-red-700"
-                          : item.priority === "high"
-                            ? "bg-orange-100 text-orange-700"
-                            : item.priority === "medium"
-                              ? "bg-yellow-100 text-yellow-700"
-                              : "bg-gray-100 text-gray-700"
-                      }`}
-                    >
-                      {item.priority}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+
+        <div className="rounded-lg border bg-card p-6">
+          <h3 className="font-semibold mb-4">Suite Details</h3>
+          <div className="max-h-64 overflow-y-auto space-y-2">
+            {suiteCoverage.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No suites found</p>
+            ) : (
+              suiteCoverage.map((suite) => (
+                <button
+                  key={suite.id}
+                  onClick={() => setSelectedModule(selectedModule === suite.id ? null : suite.id)}
+                  className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                    selectedModule === suite.id ? "border-primary bg-primary/5" : "hover:bg-muted"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-sm">{suite.name}</span>
+                    <span className="text-xs text-muted-foreground">{suite.testPlanName}</span>
+                  </div>
+                  <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
+                    <span>Total: {suite.totalCases}</span>
+                    <span>Executed: {suite.executedCases}</span>
+                    <span className="text-green-600">Pass: {suite.passedCases}</span>
+                    <span className="text-red-600">Fail: {suite.failedCases}</span>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
         </div>
       </div>
     </div>

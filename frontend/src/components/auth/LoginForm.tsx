@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useTranslations } from "next-intl"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/useAuth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,12 +19,20 @@ interface FormErrors {
 
 export function LoginForm() {
   const t = useTranslations("auth")
-  const { login } = useAuth()
+  const { login, user, isLoading: authLoading } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const returnUrl = searchParams.get("returnUrl") || "/dashboard"
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [errors, setErrors] = useState<FormErrors>({})
   const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.replace(returnUrl)
+    }
+  }, [authLoading, user, router, returnUrl])
 
   const validate = (): boolean => {
     const newErrors: FormErrors = {}
@@ -59,10 +67,11 @@ export function LoginForm() {
 
     try {
       await login(email, password)
-      router.push("/dashboard")
+      router.push(returnUrl)
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Login failed. Please check your credentials."
       setErrors({
-        general: err instanceof Error ? err.message : "Login failed. Please check your credentials.",
+        general: errorMessage,
       })
     } finally {
       setIsLoading(false)

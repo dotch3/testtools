@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import Link from "next/link"
 import {
   Plus,
   Search,
@@ -11,12 +10,18 @@ import {
   Trash2,
   TestTubes,
   AlertCircle,
-  Filter,
+  Loader2,
 } from "lucide-react"
+import { api } from "@/lib/api"
+import { useProject } from "@/contexts/ProjectContext"
+import { HierarchySelector, HierarchyBreadcrumb } from "@/components/hierarchy/HierarchySelector"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
+import { LoadingSpinner } from "@/components/ui/loading"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   Table,
   TableBody,
@@ -43,107 +48,420 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
 
+
 interface TestCase {
   id: string
   title: string
   description?: string
+  preconditions?: string
+  steps?: Array<{ order: number; action: string; expectedResult: string }>
   priority: { value: string; label: string; color: string }
   type: { value: string; label: string }
-  suite: { id: string; name: string }
+  suite: { id: string; name: string; testPlan?: { id: string; name: string } }
   status: string
+  tags: Array<{ id: string; name: string; color: string }>
+  assignees: Array<{ id: string; name?: string; email: string }>
+  lastExecution?: {
+    status: { value: string; label: string; color: string }
+    executedAt: string
+  }
   _count: { executions: number }
 }
 
-interface CaseFormData {
-  title: string
-  description: string
-  priorityId: string
-  typeId: string
+interface HierarchySelection {
+  planId: string
+  planName: string
   suiteId: string
+  suiteName: string
 }
 
-interface FormErrors {
-  title?: string
-  priorityId?: string
-  typeId?: string
+const priorityColors: Record<string, string> = {
+  critical: "border-red-500 text-red-500",
+  high: "border-orange-500 text-orange-500",
+  medium: "border-yellow-500 text-yellow-500",
+  low: "border-blue-500 text-blue-500",
 }
 
-const mockCases: TestCase[] = [
-  { id: "1", title: "Verify user login with valid credentials", description: "Test successful login with correct email and password", priority: { value: "high", label: "High", color: "#ef4444" }, type: { value: "functional", label: "Functional" }, suite: { id: "1", name: "Authentication" }, status: "active", _count: { executions: 15 } },
-  { id: "2", title: "Verify login fails with wrong password", description: "Test that login fails gracefully with incorrect password", priority: { value: "high", label: "High", color: "#ef4444" }, type: { value: "functional", label: "Functional" }, suite: { id: "1", name: "Authentication" }, status: "active", _count: { executions: 15 } },
-  { id: "3", title: "Verify password reset flow", description: "Test password reset via email link", priority: { value: "medium", label: "Medium", color: "#f59e0b" }, type: { value: "functional", label: "Functional" }, suite: { id: "1", name: "Authentication" }, status: "active", _count: { executions: 8 } },
-  { id: "4", title: "Verify API returns correct JSON structure", description: "Test that API responses match expected schema", priority: { value: "medium", label: "Medium", color: "#f59e0b" }, type: { value: "integration", label: "Integration" }, suite: { id: "3", name: "API Endpoints" }, status: "active", _count: { executions: 22 } },
-  { id: "5", title: "Verify payment processing with valid card", description: "Test successful payment with valid credit card", priority: { value: "critical", label: "Critical", color: "#dc2626" }, type: { value: "functional", label: "Functional" }, suite: { id: "4", name: "Payment Flow" }, status: "active", _count: { executions: 5 } },
-  { id: "6", title: "Verify payment fails with expired card", description: "Test that expired cards are rejected", priority: { value: "high", label: "High", color: "#ef4444" }, type: { value: "functional", label: "Functional" }, suite: { id: "4", name: "Payment Flow" }, status: "active", _count: { executions: 5 } },
-  { id: "7", title: "Verify user profile update", description: "Test updating user profile information", priority: { value: "low", label: "Low", color: "#3b82f6" }, type: { value: "functional", label: "Functional" }, suite: { id: "2", name: "User Management" }, status: "active", _count: { executions: 10 } },
-  { id: "8", title: "Verify API rate limiting", description: "Test that rate limits are enforced correctly", priority: { value: "low", label: "Low", color: "#3b82f6" }, type: { value: "performance", label: "Performance" }, suite: { id: "3", name: "API Endpoints" }, status: "draft", _count: { executions: 0 } },
-]
+const statusColors: Record<string, string> = {
+  pass: "bg-green-500/10 text-green-600 border-green-500/20",
+  fail: "bg-red-500/10 text-red-600 border-red-500/20",
+  blocked: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
+  not_run: "bg-gray-500/10 text-gray-600 border-gray-500/20",
+  skipped: "bg-purple-500/10 text-purple-600 border-purple-500/20",
+}
 
-const priorities = [
-  { value: "critical", label: "Critical", color: "#dc2626" },
-  { value: "high", label: "High", color: "#ef4444" },
-  { value: "medium", label: "Medium", color: "#f59e0b" },
-  { value: "low", label: "Low", color: "#3b82f6" },
-]
+export default function TestCasesPage() {
+  const { selectedProject } = useProject()
+  const [cases, setCases] = useState<TestCase[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isCreating, setIsCreating] = useState(false)
+  const [hierarchySelection, setHierarchySelection] = useState<HierarchySelection | null>(null)
 
-const types = [
-  { value: "functional", label: "Functional" },
-  { value: "integration", label: "Integration" },
-  { value: "performance", label: "Performance" },
-  { value: "security", label: "Security" },
-]
+  const loadCases = useCallback(async () => {
+    if (!hierarchySelection) return
+    
+    setIsLoading(true)
+    setError(null)
+    
+    try {
+      const data = await api.get<any[]>(`/suites/${hierarchySelection.suiteId}/cases`)
+      
+      const mappedCases: TestCase[] = data.map((tc: any) => ({
+        id: tc.id,
+        title: tc.title,
+        description: tc.description || "",
+        preconditions: tc.preconditions,
+        steps: tc.steps || [],
+        priority: tc.priority 
+          ? { value: tc.priority.value, label: tc.priority.label, color: tc.priority.color }
+          : { value: "medium", label: "Medium", color: "#f59e0b" },
+        type: tc.type 
+          ? { value: tc.type.value, label: tc.type.label }
+          : { value: "manual", label: "Manual" },
+        suite: { 
+          id: hierarchySelection.suiteId, 
+          name: hierarchySelection.suiteName, 
+          testPlan: { id: hierarchySelection.planId, name: hierarchySelection.planName } 
+        },
+        status: "active",
+        tags: (tc.tags || []).map((t: any) => ({ id: t.id, name: t.name, color: t.color || "#6b7280" })),
+        assignees: (tc.assignees || []).map((a: any) => ({ id: a.id, name: a.name, email: a.email })),
+        lastExecution: tc.lastExecution,
+        _count: { executions: tc._count?.executions || 0 },
+      }))
+      
+      setCases(mappedCases)
+    } catch (err) {
+      console.error("Failed to load cases:", err)
+      setError(err instanceof Error ? err.message : "Failed to load test cases")
+      setCases([])
+    } finally {
+      setIsLoading(false)
+    }
+  }, [hierarchySelection])
+
+  useEffect(() => {
+    loadCases()
+  }, [loadCases])
+
+  const handleHierarchySelect = (planId: string, planName: string, suiteId: string, suiteName: string) => {
+    setHierarchySelection({ planId, planName, suiteId, suiteName })
+  }
+
+  const handleCreateCase = async (data: { title: string; priorityId: string; typeId: string; description?: string; preconditions?: string; steps?: Array<{ action: string; expectedResult: string }> }) => {
+    if (!hierarchySelection) return
+    
+    setIsCreating(true)
+    try {
+      await api.post(`/suites/${hierarchySelection.suiteId}/cases`, {
+        title: data.title,
+        priorityId: data.priorityId,
+        typeId: data.typeId,
+        description: data.description,
+        preconditions: data.preconditions,
+        steps: data.steps,
+      })
+      setIsCreateOpen(false)
+      loadCases()
+    } catch (err) {
+      console.error("Failed to create case:", err)
+      alert(err instanceof Error ? err.message : "Failed to create test case")
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
+  const handleDeleteCase = async (caseId: string) => {
+    if (!confirm("Are you sure you want to delete this test case?")) return
+    
+    try {
+      await api.delete(`/test-cases/${caseId}`)
+      setCases(cases.filter(c => c.id !== caseId))
+    } catch (err) {
+      console.error("Failed to delete case:", err)
+      alert(err instanceof Error ? err.message : "Failed to delete test case")
+    }
+  }
+
+  const filteredCases = cases.filter((c) => {
+    if (!searchQuery) return true
+    const query = searchQuery.toLowerCase()
+    return c.title.toLowerCase().includes(query) || 
+           c.description?.toLowerCase().includes(query)
+  })
+
+  if (!selectedProject) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Test Cases</h1>
+          <p className="text-muted-foreground mt-1">
+            Select a project to view test cases
+          </p>
+        </div>
+        <Card>
+          <CardContent className="p-12 text-center">
+            <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">Select a project from the header to continue</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (!hierarchySelection) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Test Cases</h1>
+          <p className="text-muted-foreground mt-1">
+            Select a test plan and suite to view cases
+          </p>
+        </div>
+        <HierarchySelector onSelect={handleHierarchySelect} />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Test Cases</h1>
+        <div className="mt-1">
+          <HierarchyBreadcrumb
+            projectName={selectedProject.name}
+            planName={hierarchySelection.planName}
+            suiteName={hierarchySelection.suiteName}
+            onChange={() => setHierarchySelection(null)}
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-between gap-4 flex-wrap">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search test cases..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2"
+            >
+              <X className="h-4 w-4 text-muted-foreground" />
+            </button>
+          )}
+        </div>
+        
+        <CreateCaseDialog 
+          onSubmit={handleCreateCase}
+          isCreating={isCreating}
+          trigger={
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Create Test Case
+            </Button>
+          }
+        />
+      </div>
+
+      {error && (
+        <Card className="border-destructive">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="h-4 w-4" />
+              <span>{error}</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {isLoading ? (
+        <div className="flex items-center justify-center h-64">
+          <LoadingSpinner text="Loading test cases..." />
+        </div>
+      ) : filteredCases.length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <TestTubes className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-medium mb-2">No test cases</h3>
+            <p className="text-sm text-muted-foreground mb-6">
+              {searchQuery ? "No test cases match your search" : "Create your first test case for this suite"}
+            </p>
+            {!searchQuery && (
+              <CreateCaseDialog 
+                onSubmit={handleCreateCase}
+                isCreating={isCreating}
+                trigger={
+                  <Button>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Test Case
+                  </Button>
+                }
+              />
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="rounded-lg border bg-card overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[40%]">Title</TableHead>
+                <TableHead>Priority</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Executions</TableHead>
+                <TableHead className="w-[50px]"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredCases.map((caseItem) => (
+                <TableRow key={caseItem.id}>
+                  <TableCell>
+                    <div>
+                      <p className="font-medium">{caseItem.title}</p>
+                      {caseItem.description && (
+                        <p className="text-sm text-muted-foreground line-clamp-1">
+                          {caseItem.description}
+                        </p>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={priorityColors[caseItem.priority.value] || "border-gray-500 text-gray-500"}>
+                      {caseItem.priority.label}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-sm">{caseItem.type.label}</span>
+                  </TableCell>
+                  <TableCell>
+                    {caseItem.lastExecution ? (
+                      <Badge variant="outline" className={statusColors[caseItem.lastExecution.status.value] || statusColors.not_run}>
+                        {caseItem.lastExecution.status.label}
+                      </Badge>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-sm">{caseItem._count.executions}</span>
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem disabled>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          onClick={() => handleDeleteCase(caseItem.id)}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function CreateCaseDialog({
   onSubmit,
+  isCreating,
   trigger,
 }: {
-  onSubmit: (data: CaseFormData) => Promise<void>
-  trigger?: React.ReactNode
+  onSubmit: (data: { title: string; priorityId: string; typeId: string; description?: string; preconditions?: string; steps?: Array<{ action: string; expectedResult: string }> }) => Promise<void>
+  isCreating: boolean
+  trigger: React.ReactNode
 }) {
   const [isOpen, setIsOpen] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [title, setTitle] = useState("")
+  const [description, setDescription] = useState("")
+  const [preconditions, setPreconditions] = useState("")
+  const [priorityId, setPriorityId] = useState("seed-test_priority-medium")
+  const [typeId, setTypeId] = useState("seed-test_type-manual")
+  const [steps, setSteps] = useState<Array<{ action: string; expectedResult: string }>>([
+    { action: "", expectedResult: "" }
+  ])
   const [error, setError] = useState("")
-  const [formData, setFormData] = useState<CaseFormData>({
-    title: "",
-    description: "",
-    priorityId: "",
-    typeId: "",
-    suiteId: "",
-  })
-  const [errors, setErrors] = useState<FormErrors>({})
-
-  const validate = (): boolean => {
-    const newErrors: FormErrors = {}
-    if (!formData.title.trim()) {
-      newErrors.title = "Title is required"
-    } else if (formData.title.length < 5) {
-      newErrors.title = "Title must be at least 5 characters"
-    }
-    if (!formData.priorityId) {
-      newErrors.priorityId = "Priority is required"
-    }
-    if (!formData.typeId) {
-      newErrors.typeId = "Type is required"
-    }
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
-    if (!validate()) return
+    
+    if (!title.trim()) {
+      setError("Title is required")
+      return
+    }
+    if (!priorityId) {
+      setError("Priority is required")
+      return
+    }
+    if (!typeId) {
+      setError("Type is required")
+      return
+    }
 
-    setIsSubmitting(true)
+    const validSteps = steps
+      .filter(s => s.action.trim() || s.expectedResult.trim())
+      .map((s, i) => ({ ...s, order: i + 1 }))
     try {
-      await onSubmit(formData)
+      await onSubmit({ 
+        title: title.trim(), 
+        priorityId, 
+        typeId,
+        description: description.trim() || undefined,
+        preconditions: preconditions.trim() || undefined,
+        steps: validSteps.length > 0 ? validSteps : undefined,
+      })
+      setTitle("")
+      setDescription("")
+      setPreconditions("")
+      setPriorityId("seed-test_priority-medium")
+      setTypeId("seed-test_type-manual")
+      setSteps([{ action: "", expectedResult: "" }])
       setIsOpen(false)
-      setFormData({ title: "", description: "", priorityId: "", typeId: "", suiteId: "" })
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create test case")
-    } finally {
-      setIsSubmitting(false)
     }
+  }
+
+  const addStep = () => {
+    setSteps([...steps, { action: "", expectedResult: "" }])
+  }
+
+  const removeStep = (index: number) => {
+    if (steps.length > 1) {
+      setSteps(steps.filter((_, i) => i !== index))
+    }
+  }
+
+  const updateStep = (index: number, field: "action" | "expectedResult", value: string) => {
+    const newSteps = [...steps]
+    newSteps[index][field] = value
+    setSteps(newSteps)
   }
 
   return (
@@ -151,12 +469,12 @@ function CreateCaseDialog({
       <DialogTrigger asChild onClick={() => setIsOpen(true)}>
         {trigger}
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Create Test Case</DialogTitle>
             <DialogDescription>
-              Add a new test case to your test suite.
+              Add a new test case to this suite
             </DialogDescription>
           </DialogHeader>
 
@@ -174,25 +492,31 @@ function CreateCaseDialog({
               </Label>
               <Input
                 id="title"
-                value={formData.title}
-                onChange={(e) => {
-                  setFormData({ ...formData, title: e.target.value })
-                  if (errors.title) setErrors({ ...errors, title: undefined })
-                }}
-                placeholder="e.g., Verify user login with valid credentials"
-                className={errors.title ? "border-destructive" : ""}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g., Verify login with valid credentials"
               />
-              {errors.title && <p className="text-sm text-destructive">{errors.title}</p>}
             </div>
 
             <div className="grid gap-2">
               <Label htmlFor="description">Description</Label>
               <textarea
                 id="description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Describe the test case steps and expected results..."
-                className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Describe what this test case validates..."
+                className="min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="preconditions">Preconditions</Label>
+              <textarea
+                id="preconditions"
+                value={preconditions}
+                onChange={(e) => setPreconditions(e.target.value)}
+                placeholder="Any setup or prerequisites needed..."
+                className="min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
             </div>
 
@@ -203,21 +527,15 @@ function CreateCaseDialog({
                 </Label>
                 <select
                   id="priority"
-                  value={formData.priorityId}
-                  onChange={(e) => {
-                    setFormData({ ...formData, priorityId: e.target.value })
-                    if (errors.priorityId) setErrors({ ...errors, priorityId: undefined })
-                  }}
-                  className={`w-full h-10 px-3 rounded-md border bg-background text-sm ${
-                    errors.priorityId ? "border-destructive" : "border-input"
-                  }`}
+                  value={priorityId}
+                  onChange={(e) => setPriorityId(e.target.value)}
+                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
                 >
-                  <option value="">Select priority</option>
-                  {priorities.map((p) => (
-                    <option key={p.value} value={p.value}>{p.label}</option>
-                  ))}
+                  <option value="seed-test_priority-low">Low</option>
+                  <option value="seed-test_priority-medium">Medium</option>
+                  <option value="seed-test_priority-high">High</option>
+                  <option value="seed-test_priority-critical">Critical</option>
                 </select>
-                {errors.priorityId && <p className="text-sm text-destructive">{errors.priorityId}</p>}
               </div>
 
               <div className="grid gap-2">
@@ -226,312 +544,79 @@ function CreateCaseDialog({
                 </Label>
                 <select
                   id="type"
-                  value={formData.typeId}
-                  onChange={(e) => {
-                    setFormData({ ...formData, typeId: e.target.value })
-                    if (errors.typeId) setErrors({ ...errors, typeId: undefined })
-                  }}
-                  className={`w-full h-10 px-3 rounded-md border bg-background text-sm ${
-                    errors.typeId ? "border-destructive" : "border-input"
-                  }`}
+                  value={typeId}
+                  onChange={(e) => setTypeId(e.target.value)}
+                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
                 >
-                  <option value="">Select type</option>
-                  {types.map((t) => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
+                  <option value="seed-test_type-manual">Manual</option>
+                  <option value="seed-test_type-automated">Automated</option>
+                  <option value="seed-test_type-exploratory">Exploratory</option>
+                  <option value="seed-test_type-regression">Regression</option>
                 </select>
-                {errors.typeId && <p className="text-sm text-destructive">{errors.typeId}</p>}
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <Label>Test Steps</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addStep}>
+                  <Plus className="mr-1 h-3 w-3" /> Add Step
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {steps.map((step, index) => (
+                  <div key={index} className="flex gap-2 items-start">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-muted text-xs flex items-center justify-center mt-2">
+                      {index + 1}
+                    </span>
+                    <div className="flex-1 grid grid-cols-2 gap-2">
+                      <Input
+                        value={step.action}
+                        onChange={(e) => updateStep(index, "action", e.target.value)}
+                        placeholder="Action (e.g., Enter username)"
+                        className="text-sm"
+                      />
+                      <Input
+                        value={step.expectedResult}
+                        onChange={(e) => updateStep(index, "expectedResult", e.target.value)}
+                        placeholder="Expected result"
+                        className="text-sm"
+                      />
+                    </div>
+                    {steps.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeStep(index)}
+                        className="h-8 w-8 p-0 text-destructive"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           </div>
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Creating..." : "Create Test Case"}
+            <Button type="submit" disabled={isCreating}>
+              {isCreating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Test Case"
+              )}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function CasesSkeleton() {
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-between">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-10 w-40" />
-      </div>
-      <div className="rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[40%]">Title</TableHead>
-              <TableHead>Priority</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Suite</TableHead>
-              <TableHead className="text-center">Runs</TableHead>
-              <TableHead className="w-[50px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {[...Array(8)].map((_, i) => (
-              <TableRow key={i}>
-                <TableCell><Skeleton className="h-4 w-48" /></TableCell>
-                <TableCell><Skeleton className="h-5 w-14" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                <TableCell className="text-center"><Skeleton className="h-4 w-8 mx-auto" /></TableCell>
-                <TableCell><Skeleton className="h-8 w-8" /></TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
-  )
-}
-
-function EmptyState({ onCreate }: { onCreate: () => void }) {
-  return (
-    <div className="rounded-lg border bg-card p-12 text-center">
-      <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-        <TestTubes className="h-8 w-8 text-muted-foreground" />
-      </div>
-      <h3 className="text-lg font-medium mb-1">No test cases yet</h3>
-      <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-        Create test cases to verify your application functionality.
-      </p>
-      <Button onClick={onCreate}>
-        <Plus className="mr-2 h-4 w-4" />
-        Create Test Case
-      </Button>
-    </div>
-  )
-}
-
-export default function TestCasesPage() {
-  const [cases, setCases] = useState<TestCase[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [priorityFilter, setPriorityFilter] = useState("")
-  const [isCreateOpen, setIsCreateOpen] = useState(false)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-
-  const loadCases = useCallback(async () => {
-    setIsLoading(true)
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    setCases(mockCases)
-    setIsLoading(false)
-  }, [])
-
-  useEffect(() => {
-    loadCases()
-  }, [loadCases])
-
-  const handleCreate = async (data: CaseFormData) => {
-    console.log("Creating:", data)
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    const priority = priorities.find((p) => p.value === data.priorityId) || priorities[1]
-    const type = types.find((t) => t.value === data.typeId) || types[0]
-    setCases([
-      {
-        id: String(Date.now()),
-        title: data.title,
-        description: data.description,
-        priority: { value: priority.value, label: priority.label, color: priority.color },
-        type: { value: type.value, label: type.label },
-        suite: { id: "1", name: "New Suite" },
-        status: "active",
-        _count: { executions: 0 },
-      },
-      ...cases,
-    ])
-    setIsCreateOpen(false)
-  }
-
-  const handleDelete = async (caseItem: TestCase) => {
-    if (!confirm(`Delete "${caseItem.title}"? This cannot be undone.`)) return
-    setDeletingId(caseItem.id)
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    setCases(cases.filter((c) => c.id !== caseItem.id))
-    setDeletingId(null)
-  }
-
-  const filteredCases = cases.filter((c) => {
-    const matchesSearch =
-      !searchQuery ||
-      c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.description?.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesPriority = !priorityFilter || c.priority.value === priorityFilter
-    return matchesSearch && matchesPriority
-  })
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Test Cases</h1>
-          <p className="text-muted-foreground mt-1">
-            Create and manage test cases
-          </p>
-        </div>
-        <CasesSkeleton />
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Test Cases</h1>
-        <p className="text-muted-foreground mt-1">
-          Create and manage test cases
-        </p>
-      </div>
-
-      <div className="flex justify-between gap-4">
-        <div className="flex gap-2 flex-1">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search test cases..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2"
-              >
-                <X className="h-4 w-4 text-muted-foreground" />
-              </button>
-            )}
-          </div>
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value)}
-            className="h-10 px-3 rounded-md border border-input bg-background text-sm"
-          >
-            <option value="">All Priorities</option>
-            {priorities.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
-        </div>
-        <CreateCaseDialog
-          onSubmit={handleCreate}
-          trigger={
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Test Case
-            </Button>
-          }
-        />
-      </div>
-
-      {filteredCases.length === 0 && !searchQuery && !priorityFilter ? (
-        <EmptyState onCreate={() => setIsCreateOpen(true)} />
-      ) : filteredCases.length === 0 ? (
-        <div className="rounded-lg border bg-card p-8 text-center">
-          <p className="text-muted-foreground">No test cases match your filters.</p>
-          <div className="flex justify-center gap-2 mt-2">
-            {searchQuery && (
-              <Button variant="link" onClick={() => setSearchQuery("")}>
-                Clear search
-              </Button>
-            )}
-            {priorityFilter && (
-              <Button variant="link" onClick={() => setPriorityFilter("")}>
-                Clear filter
-              </Button>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="rounded-lg border bg-card overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[40%]">Title</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Suite</TableHead>
-                <TableHead className="text-center">Runs</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredCases.map((caseItem) => (
-                <TableRow key={caseItem.id} className="group">
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">{caseItem.title}</p>
-                      {caseItem.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-1">
-                          {caseItem.description}
-                        </p>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="outline"
-                      style={{
-                        borderColor: caseItem.priority.color,
-                        color: caseItem.priority.color,
-                      }}
-                    >
-                      {caseItem.priority.label}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm text-muted-foreground">
-                      {caseItem.type.label}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm">{caseItem.suite.name}</span>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <span className="text-sm text-muted-foreground">
-                      {caseItem._count.executions}
-                    </span>
-                  </TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem disabled>
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => handleDelete(caseItem)}
-                          disabled={deletingId === caseItem.id}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          {deletingId === caseItem.id ? "Deleting..." : "Delete"}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-    </div>
   )
 }

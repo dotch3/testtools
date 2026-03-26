@@ -149,39 +149,60 @@ export class BugService {
 
   async getStats(projectId: string): Promise<{
     total: number
-    open: number
-    closed: number
-    critical: number
+    byStatus: Record<string, number>
+    byPriority: Record<string, number>
+    bySeverity: Record<string, number>
   }> {
-    const [total, open, closed, critical] = await Promise.all([
+    const [total, byStatus, byPriority, bySeverity] = await Promise.all([
       prisma.bug.count({ where: { projectId } }),
-      prisma.bug.count({
-        where: {
-          projectId,
-          status: {
-            systemKey: { not: "closed" },
-          },
-        },
+      prisma.bug.groupBy({
+        by: ["statusId"],
+        where: { projectId },
+        _count: true,
       }),
-      prisma.bug.count({
-        where: {
-          projectId,
-          status: {
-            systemKey: "closed",
-          },
-        },
+      prisma.bug.groupBy({
+        by: ["priorityId"],
+        where: { projectId },
+        _count: true,
       }),
-      prisma.bug.count({
-        where: {
-          projectId,
-          severity: {
-            systemKey: "critical",
-          },
-        },
+      prisma.bug.groupBy({
+        by: ["severityId"],
+        where: { projectId },
+        _count: true,
       }),
     ])
 
-    return { total, open, closed, critical }
+    const statusValues = await prisma.enumValue.findMany({
+      where: { id: { in: byStatus.map((s) => s.statusId) } },
+      select: { id: true, value: true },
+    })
+    const priorityValues = await prisma.enumValue.findMany({
+      where: { id: { in: byPriority.map((p) => p.priorityId) } },
+      select: { id: true, value: true },
+    })
+    const severityValues = await prisma.enumValue.findMany({
+      where: { id: { in: bySeverity.map((s) => s.severityId) } },
+      select: { id: true, value: true },
+    })
+
+    const statusMap = Object.fromEntries(statusValues.map((s) => [s.value, 0]))
+    const priorityMap = Object.fromEntries(priorityValues.map((p) => [p.value, 0]))
+    const severityMap = Object.fromEntries(severityValues.map((s) => [s.value, 0]))
+
+    for (const s of byStatus) {
+      const val = statusValues.find((v) => v.id === s.statusId)
+      if (val) statusMap[val.value] = s._count
+    }
+    for (const p of byPriority) {
+      const val = priorityValues.find((v) => v.id === p.priorityId)
+      if (val) priorityMap[val.value] = p._count
+    }
+    for (const s of bySeverity) {
+      const val = severityValues.find((v) => v.id === s.severityId)
+      if (val) severityMap[val.value] = s._count
+    }
+
+    return { total, byStatus: statusMap, byPriority: priorityMap, bySeverity: severityMap }
   }
 }
 

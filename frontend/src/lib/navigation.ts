@@ -1,19 +1,18 @@
 import {
   LayoutDashboard,
   ClipboardList,
-  TestTubes,
+  FlaskConical,
   PlayCircle,
   Bug,
   BarChart3,
   Map,
   Users,
   Shield,
-  ListTodo,
+  ListChecks,
   Settings,
   Plug,
   Database,
   Bell,
-  LogOut,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
@@ -21,8 +20,8 @@ export interface NavItem {
   titleKey: string
   href: string
   icon: LucideIcon
+  iconColor?: string
   badge?: string
-  isLogout?: boolean
 }
 
 export interface NavSection {
@@ -38,36 +37,43 @@ export const sidebarNavigation: NavSection[] = [
         titleKey: "nav.dashboard",
         href: "/dashboard",
         icon: LayoutDashboard,
+        iconColor: "text-icon-blue",
       },
       {
         titleKey: "nav.testPlans",
         href: "/test-plans",
         icon: ClipboardList,
+        iconColor: "text-icon-purple",
       },
       {
         titleKey: "nav.testSuites",
         href: "/test-suites",
-        icon: TestTubes,
+        icon: FlaskConical,
+        iconColor: "text-icon-cyan",
       },
       {
         titleKey: "nav.testCases",
         href: "/test-cases",
-        icon: ListTodo,
+        icon: ListChecks,
+        iconColor: "text-icon-green",
       },
       {
         titleKey: "nav.executions",
         href: "/executions",
         icon: PlayCircle,
+        iconColor: "text-icon-orange",
       },
       {
         titleKey: "nav.bugs",
         href: "/bugs",
         icon: Bug,
+        iconColor: "text-destructive",
       },
       {
         titleKey: "nav.notifications",
         href: "/notifications",
         icon: Bell,
+        iconColor: "text-icon-pink",
       },
     ],
   },
@@ -78,11 +84,13 @@ export const sidebarNavigation: NavSection[] = [
         titleKey: "nav.reportsDashboard",
         href: "/reports/dashboard",
         icon: BarChart3,
+        iconColor: "text-icon-blue",
       },
       {
         titleKey: "nav.coverage",
         href: "/reports/coverage",
         icon: Map,
+        iconColor: "text-icon-purple",
       },
     ],
   },
@@ -94,32 +102,31 @@ export const sidebarNavigation: NavSection[] = [
         titleKey: "nav.users",
         href: "/admin/users",
         icon: Users,
+        iconColor: "text-icon-blue",
       },
       {
         titleKey: "nav.roles",
         href: "/admin/roles",
         icon: Shield,
+        iconColor: "text-icon-purple",
       },
       {
         titleKey: "nav.enums",
         href: "/admin/enums",
         icon: Database,
+        iconColor: "text-icon-cyan",
       },
       {
         titleKey: "nav.integrations",
         href: "/admin/integrations",
         icon: Plug,
+        iconColor: "text-icon-green",
       },
       {
         titleKey: "nav.settings",
         href: "/admin/settings",
         icon: Settings,
-      },
-      {
-        titleKey: "nav.logout",
-        href: "/logout",
-        icon: LogOut,
-        isLogout: true,
+        iconColor: "text-muted-foreground",
       },
     ],
   },

@@ -311,6 +311,35 @@ export class AuthService {
       },
     }
   }
+
+  async getUserProfile(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        role: true,
+        projectMembers: {
+          select: { projectId: true },
+        },
+      },
+    })
+
+    if (!user) {
+      throw new AuthError('User not found', 404)
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      avatarUrl: user.avatarUrl,
+      role: {
+        id: user.role.id,
+        name: user.role.name,
+        label: user.role.label,
+      },
+      projectIds: user.projectMembers.map((pm) => pm.projectId),
+    }
+  }
 }
 
 export class AuthError extends Error {

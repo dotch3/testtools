@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useState,
+  useCallback,
   type ReactNode,
 } from "react"
 import { api } from "@/lib/api"
@@ -25,13 +26,50 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>
   logout: () => void
   updateUser: (data: Partial<User>) => void
+  refreshUser: () => Promise<boolean>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+function normalizeUser(raw: any): User {
+  let role = "User"
+  
+  if (typeof raw.role === "string") {
+    role = raw.role
+  } else if (raw.role && typeof raw.role === "object") {
+    if (raw.role.label) {
+      role = raw.role.label
+    } else if (raw.role.name) {
+      role = raw.role.name
+    }
+  } else if (raw.roleId) {
+    role = raw.roleId.replace("role-", "").replace("-", " ")
+    role = role.charAt(0).toUpperCase() + role.slice(1)
+  }
+  
+  return {
+    id: raw.id,
+    email: raw.email,
+    name: raw.name || "",
+    avatarUrl: raw.avatarUrl,
+    role,
+    projectIds: Array.isArray(raw.projectIds) ? raw.projectIds : [],
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+
+  const fetchUser = useCallback(async () => {
+    try {
+      const userData = await api.get<any>("/auth/me")
+      setUser(normalizeUser(userData))
+      return true
+    } catch {
+      return false
+    }
+  }, [])
 
   useEffect(() => {
     const initAuth = async () => {
@@ -42,11 +80,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const userData = await api.get<User>("/auth/me")
-        setUser(userData)
-      } catch {
-        localStorage.removeItem("access_token")
-        localStorage.removeItem("refresh_token")
+        const userData = await api.get<any>("/auth/me", { noRedirect: true } as any)
+        setUser(normalizeUser(userData))
+      } catch (err) {
+        console.error("Failed to fetch user:", err)
       } finally {
         setIsLoading(false)
       }
@@ -55,16 +92,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initAuth()
   }, [])
 
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "access_token" && !e.newValue) {
+        setUser(null)
+        if (!window.location.pathname.startsWith("/login")) {
+          window.location.href = "/login"
+        }
+      }
+    }
+
+    window.addEventListener("storage", handleStorageChange)
+    return () => window.removeEventListener("storage", handleStorageChange)
+  }, [])
+
   const login = async (email: string, password: string) => {
     const data = await api.post<{
       accessToken: string
       refreshToken: string
-      user: User
+      user: any
     }>("/auth/login", { email, password })
 
     localStorage.setItem("access_token", data.accessToken)
     localStorage.setItem("refresh_token", data.refreshToken)
-    setUser(data.user)
+    setUser(normalizeUser(data.user))
   }
 
   const logout = () => {
@@ -89,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         logout,
         updateUser,
+        refreshUser: fetchUser,
       }}
     >
       {children}

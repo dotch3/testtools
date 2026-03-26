@@ -1,33 +1,37 @@
 "use client"
 
-import { useTranslations } from "next-intl"
-import { useSearchParams } from "next/navigation"
-import { Suspense } from "react"
+import { Bug } from "lucide-react"
+import { useProject } from "@/contexts/ProjectContext"
 import { BugTable } from "@/components/bugs/BugTable"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import Link from "next/link"
+import { ChevronRight } from "lucide-react"
 
-function BugsContent() {
-  const searchParams = useSearchParams()
-  const projectId = searchParams.get("project")
-  const executionId = searchParams.get("execution")
-
-  if (!projectId) {
-    return (
-      <div className="rounded-lg border bg-card p-8 text-center">
-        <p className="text-muted-foreground">
-          Select a project to view its bugs.
+function NoProjectSelected() {
+  return (
+    <Card>
+      <CardContent className="p-12 text-center">
+        <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+          <Bug className="h-8 w-8 text-muted-foreground" />
+        </div>
+        <h3 className="text-lg font-medium mb-2">No Project Selected</h3>
+        <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
+          Please select a project from the header to view and manage bugs.
         </p>
-        <p className="text-sm text-muted-foreground mt-1">
-          You can access bugs from a project&apos;s detail page.
-        </p>
-      </div>
-    )
-  }
-
-  return <BugTable projectId={projectId} executionId={executionId ?? undefined} />
+        <Button asChild>
+          <Link href="/projects/select">
+            <ChevronRight className="mr-2 h-4 w-4" />
+            Select Project
+          </Link>
+        </Button>
+      </CardContent>
+    </Card>
+  )
 }
 
 export default function BugsPage() {
-  const t = useTranslations("common")
+  const { selectedProject } = useProject()
 
   return (
     <div className="space-y-6">
@@ -37,9 +41,12 @@ export default function BugsPage() {
           Track and manage bugs from test executions
         </p>
       </div>
-      <Suspense fallback={<div className="text-center py-8">{t("loading")}</div>}>
-        <BugsContent />
-      </Suspense>
+      
+      {!selectedProject ? (
+        <NoProjectSelected />
+      ) : (
+        <BugTable projectId={selectedProject.id} />
+      )}
     </div>
   )
 }

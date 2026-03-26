@@ -1,6 +1,6 @@
 import { prisma } from "../infrastructure/database/prisma.js"
 import type { TestPlan } from "@prisma/client"
-import { NotFoundError, BadRequestError } from "../utils/errors.js"
+import { NotFoundError, ForbiddenError } from "../utils/errors.js"
 
 export interface CreateTestPlanData {
   projectId: string
@@ -20,8 +20,24 @@ export interface UpdateTestPlanData {
   endDate?: Date | null
 }
 
+async function checkProjectAccess(projectId: string, userId: string, roleId: string): Promise<boolean> {
+  if (roleId === 'role-admin') return true
+  
+  const member = await prisma.projectMember.findUnique({
+    where: {
+      projectId_userId: { projectId, userId },
+    },
+  })
+  return !!member
+}
+
 export class TestPlanService {
-  async create(data: CreateTestPlanData): Promise<TestPlan> {
+  async create(data: CreateTestPlanData, userId: string, roleId: string): Promise<TestPlan> {
+    const hasAccess = await checkProjectAccess(data.projectId, userId, roleId)
+    if (!hasAccess) {
+      throw new ForbiddenError("You don't have access to this project")
+    }
+
     return prisma.testPlan.create({
       data: {
         projectId: data.projectId,
@@ -38,25 +54,39 @@ export class TestPlanService {
   async findById(id: string): Promise<TestPlan | null> {
     return prisma.testPlan.findUnique({
       where: { id },
+      include: {
+        status: true,
+      },
     })
   }
 
-  async findByProject(projectId: string): Promise<TestPlan[]> {
+  async findByProject(projectId: string, userId: string, roleId: string): Promise<TestPlan[]> {
+    const hasAccess = await checkProjectAccess(projectId, userId, roleId)
+    if (!hasAccess) {
+      throw new ForbiddenError("You don't have access to this project")
+    }
+
     return prisma.testPlan.findMany({
       where: { projectId },
       include: {
         _count: {
           select: { suites: true, executions: true },
         },
+        status: true,
       },
       orderBy: { createdAt: "desc" },
     })
   }
 
-  async update(id: string, data: UpdateTestPlanData): Promise<TestPlan> {
+  async update(id: string, data: UpdateTestPlanData, userId: string, roleId: string): Promise<TestPlan> {
     const existing = await this.findById(id)
     if (!existing) {
       throw new NotFoundError("Test plan not found")
+    }
+
+    const hasAccess = await checkProjectAccess(existing.projectId, userId, roleId)
+    if (!hasAccess) {
+      throw new ForbiddenError("You don't have access to this project")
     }
 
     return prisma.testPlan.update({
@@ -68,13 +98,19 @@ export class TestPlanService {
         startDate: data.startDate,
         endDate: data.endDate,
       },
+      include: { status: true },
     })
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string, userId: string, roleId: string): Promise<void> {
     const existing = await this.findById(id)
     if (!existing) {
       throw new NotFoundError("Test plan not found")
+    }
+
+    const hasAccess = await checkProjectAccess(existing.projectId, userId, roleId)
+    if (!hasAccess) {
+      throw new ForbiddenError("You don't have access to this project")
     }
 
     await prisma.testPlan.delete({
@@ -82,10 +118,15 @@ export class TestPlanService {
     })
   }
 
-  async clone(id: string, createdById: string): Promise<TestPlan> {
+  async clone(id: string, createdById: string, userId: string, roleId: string): Promise<TestPlan> {
     const existing = await this.findById(id)
     if (!existing) {
       throw new NotFoundError("Test plan not found")
+    }
+
+    const hasAccess = await checkProjectAccess(existing.projectId, userId, roleId)
+    if (!hasAccess) {
+      throw new ForbiddenError("You don't have access to this project")
     }
 
     const cloned = await prisma.testPlan.create({

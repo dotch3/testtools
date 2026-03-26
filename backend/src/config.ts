@@ -18,7 +18,7 @@ export const config = {
   OAUTH_MICROSOFT_CLIENT_ID: process.env.OAUTH_MICROSOFT_CLIENT_ID || '',
   OAUTH_MICROSOFT_CLIENT_SECRET: process.env.OAUTH_MICROSOFT_CLIENT_SECRET || '',
   ADMIN_EMAIL: process.env.ADMIN_EMAIL || 'admin@testtools.com',
-  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || 'changeme123!',
+  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || 'Changeme123!',
   STORAGE_PROVIDER: process.env.STORAGE_PROVIDER || 'local',
   STORAGE_PATH: process.env.STORAGE_PATH || './data/uploads',
   SUPABASE_URL: process.env.SUPABASE_URL || '',

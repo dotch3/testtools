@@ -13,10 +13,18 @@ import {
   TestTubes,
   ChevronRight,
   AlertCircle,
+  Copy,
+  Move,
+  Filter,
 } from "lucide-react"
+import { api } from "@/lib/api"
+import { CopyMoveDialog } from "@/components/test-suites/CopyMoveDialog"
+import { useProject } from "@/contexts/ProjectContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Card, CardContent } from "@/components/ui/card"
+import { NoProjectSelected } from "@/components/ui/NoProjectSelected"
 import {
   Dialog,
   DialogContent,
@@ -35,12 +43,19 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
 
+interface TestPlan {
+  id: string
+  name: string
+}
+
 interface TestSuite {
   id: string
   name: string
   description?: string
   projectId: string
   projectName: string
+  testPlanId?: string
+  testPlanName?: string
   _count: {
     cases: number
   }
@@ -49,28 +64,24 @@ interface TestSuite {
 interface SuiteFormData {
   name: string
   description: string
-  projectId: string
+  testPlanId: string
 }
 
 interface FormErrors {
   name?: string
-  projectId?: string
+  testPlanId?: string
 }
-
-const mockSuites: TestSuite[] = [
-  { id: "1", name: "Authentication", description: "Login, logout, and session tests", projectId: "1", projectName: "Web App", _count: { cases: 45 } },
-  { id: "2", name: "User Management", description: "User CRUD and profile tests", projectId: "1", projectName: "Web App", _count: { cases: 32 } },
-  { id: "3", name: "API Endpoints", description: "REST API integration tests", projectId: "2", projectName: "Mobile App", _count: { cases: 78 } },
-  { id: "4", name: "Payment Flow", description: "Payment processing tests", projectId: "1", projectName: "Web App", _count: { cases: 25 } },
-  { id: "5", name: "Dashboard", description: "Main dashboard functionality", projectId: "3", projectName: "Admin Portal", _count: { cases: 18 } },
-]
 
 function CreateSuiteDialog({
   onSubmit,
   trigger,
+  testPlans,
+  defaultPlanId,
 }: {
   onSubmit: (data: SuiteFormData) => Promise<void>
   trigger?: React.ReactNode
+  testPlans: TestPlan[]
+  defaultPlanId?: string
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -78,7 +89,7 @@ function CreateSuiteDialog({
   const [formData, setFormData] = useState<SuiteFormData>({
     name: "",
     description: "",
-    projectId: "",
+    testPlanId: defaultPlanId || "",
   })
   const [errors, setErrors] = useState<FormErrors>({})
 
@@ -89,8 +100,8 @@ function CreateSuiteDialog({
     } else if (formData.name.length < 3) {
       newErrors.name = "Name must be at least 3 characters"
     }
-    if (!formData.projectId) {
-      newErrors.projectId = "Please select a project"
+    if (!formData.testPlanId) {
+      newErrors.testPlanId = "Please select a test plan"
     }
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -105,7 +116,7 @@ function CreateSuiteDialog({
     try {
       await onSubmit(formData)
       setIsOpen(false)
-      setFormData({ name: "", description: "", projectId: "" })
+      setFormData({ name: "", description: "", testPlanId: defaultPlanId || "" })
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create suite")
     } finally {
@@ -136,27 +147,29 @@ function CreateSuiteDialog({
 
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="project">
-                Project <span className="text-destructive">*</span>
+              <Label htmlFor="testPlan">
+                Test Plan <span className="text-destructive">*</span>
               </Label>
               <select
-                id="project"
-                value={formData.projectId}
+                id="testPlan"
+                value={formData.testPlanId}
                 onChange={(e) => {
-                  setFormData({ ...formData, projectId: e.target.value })
-                  if (errors.projectId) setErrors({ ...errors, projectId: undefined })
+                  setFormData({ ...formData, testPlanId: e.target.value })
+                  if (errors.testPlanId) setErrors({ ...errors, testPlanId: undefined })
                 }}
                 className={`w-full h-10 px-3 rounded-md border bg-background text-sm ${
-                  errors.projectId ? "border-destructive" : "border-input"
+                  errors.testPlanId ? "border-destructive" : "border-input"
                 }`}
               >
-                <option value="">Select a project</option>
-                <option value="1">Web App</option>
-                <option value="2">Mobile App</option>
-                <option value="3">Admin Portal</option>
+                <option value="">Select a test plan</option>
+                {testPlans.map((plan) => (
+                  <option key={plan.id} value={plan.id}>
+                    {plan.name}
+                  </option>
+                ))}
               </select>
-              {errors.projectId && (
-                <p className="text-sm text-destructive">{errors.projectId}</p>
+              {errors.testPlanId && (
+                <p className="text-sm text-destructive">{errors.testPlanId}</p>
               )}
             </div>
             <div className="grid gap-2">
@@ -229,74 +242,176 @@ function SuitesSkeleton() {
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="rounded-lg border bg-card p-12 text-center">
-      <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-        <Folder className="h-8 w-8 text-muted-foreground" />
-      </div>
-      <h3 className="text-lg font-medium mb-1">No test suites yet</h3>
-      <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-        Create test suites to organize your test cases by feature or module.
-      </p>
-      <Button onClick={onCreate}>
-        <Plus className="mr-2 h-4 w-4" />
-        Create Test Suite
-      </Button>
-    </div>
+    <Card>
+      <CardContent className="p-12 text-center">
+        <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+          <Folder className="h-8 w-8 text-muted-foreground" />
+        </div>
+        <h3 className="text-lg font-medium mb-2">No test suites yet</h3>
+        <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
+          Create test suites to organize your test cases by feature or module.
+        </p>
+        <Button onClick={onCreate}>
+          <Plus className="mr-2 h-4 w-4" />
+          Create Test Suite
+        </Button>
+      </CardContent>
+    </Card>
   )
 }
 
 export default function TestSuitesPage() {
+  const { selectedProject } = useProject()
   const [suites, setSuites] = useState<TestSuite[]>([])
+  const [testPlans, setTestPlans] = useState<TestPlan[]>([])
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [copyMoveSuite, setCopyMoveSuite] = useState<{ suite: TestSuite; mode: "copy" | "move" } | null>(null)
 
   const loadSuites = useCallback(async () => {
+    if (!selectedProject) {
+      setSuites([])
+      setTestPlans([])
+      setIsLoading(false)
+      return
+    }
+
     setIsLoading(true)
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    setSuites(mockSuites)
-    setIsLoading(false)
-  }, [])
+    try {
+      const plansData = await api.get<any[]>(`/projects/${selectedProject.id}/test-plans`)
+
+      const plans: TestPlan[] = plansData.map(plan => ({
+        id: plan.id,
+        name: plan.name,
+      }))
+
+      const allSuites: TestSuite[] = []
+      for (const plan of plansData) {
+        try {
+          const suites = await api.get<any[]>(`/test-plans/${plan.id}/suites`)
+          suites.forEach(suite => {
+            allSuites.push({
+              id: suite.id,
+              name: suite.name,
+              description: suite.description,
+              projectId: selectedProject.id,
+              projectName: selectedProject.name,
+              testPlanId: plan.id,
+              testPlanName: plan.name,
+              _count: { cases: suite._count?.cases || 0 },
+            })
+          })
+        } catch (e) {
+          console.error(`Failed to load suites for plan ${plan.id}:`, e)
+        }
+      }
+
+      setSuites(allSuites)
+      setTestPlans(plans)
+    } catch (err) {
+      console.error("Failed to load suites:", err)
+      setSuites([])
+      setTestPlans([])
+    } finally {
+      setIsLoading(false)
+    }
+  }, [selectedProject])
 
   useEffect(() => {
     loadSuites()
   }, [loadSuites])
 
   const handleCreate = async (data: SuiteFormData) => {
-    console.log("Creating:", data)
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    const projectName = ["Web App", "Mobile App", "Admin Portal"].find(
-      (_, i) => String(i + 1) === data.projectId
-    ) || "Unknown"
-    setSuites([
-      {
-        id: String(Date.now()),
-        name: data.name,
-        description: data.description,
-        projectId: data.projectId,
-        projectName,
-        _count: { cases: 0 },
-      },
-      ...suites,
-    ])
-    setIsCreateOpen(false)
+    const newSuite = await api.post<any>(`/test-plans/${data.testPlanId}/suites`, {
+      name: data.name,
+      description: data.description,
+    })
+    
+    const plan = testPlans.find((p) => p.id === data.testPlanId)
+    setSuites([{
+      id: newSuite.id,
+      name: data.name,
+      description: data.description,
+      projectId: selectedProject?.id || "",
+      projectName: selectedProject?.name || "",
+      testPlanId: data.testPlanId,
+      testPlanName: plan?.name,
+      _count: { cases: 0 },
+    }, ...suites])
   }
 
   const handleDelete = async (suite: TestSuite) => {
     if (!confirm(`Delete "${suite.name}"? This cannot be undone.`)) return
     setDeletingId(suite.id)
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    setSuites(suites.filter((s) => s.id !== suite.id))
-    setDeletingId(null)
+    try {
+      await api.delete(`/suites/${suite.id}`)
+      setSuites(suites.filter((s) => s.id !== suite.id))
+    } catch (err) {
+      console.error("Failed to delete suite:", err)
+      alert("Failed to delete suite. Please try again.")
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const handleCopyMoveComplete = async (newPlanId: string) => {
+    if (!copyMoveSuite) return
+    
+    try {
+      if (copyMoveSuite.mode === "copy") {
+        const newSuite = await api.post<any>(`/suites/${copyMoveSuite.suite.id}/copy`, {
+          targetPlanId: newPlanId,
+        })
+        const targetPlan = testPlans.find((p) => p.id === newPlanId)
+        setSuites([{
+          ...copyMoveSuite.suite,
+          id: newSuite.id,
+          name: newSuite.name,
+          testPlanId: newPlanId,
+          testPlanName: targetPlan?.name,
+        }, ...suites])
+      } else {
+        await api.patch(`/suites/${copyMoveSuite.suite.id}/move`, {
+          targetPlanId: newPlanId,
+        })
+        const targetPlan = testPlans.find((p) => p.id === newPlanId)
+        setSuites(
+          suites.map((s) =>
+            s.id === copyMoveSuite.suite.id
+              ? { ...s, testPlanId: newPlanId, testPlanName: targetPlan?.name }
+              : s
+          )
+        )
+      }
+    } catch (err) {
+      console.error(`Failed to ${copyMoveSuite.mode} suite:`, err)
+      alert(`Failed to ${copyMoveSuite.mode} suite. Please try again.`)
+    }
+    setCopyMoveSuite(null)
   }
 
   const filteredSuites = suites.filter(
     (s) =>
-      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.projectName.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+      (s.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.description || "").toLowerCase().includes(searchQuery.toLowerCase())
+  ).filter((s) => !selectedPlanId || s.testPlanId === selectedPlanId)
+
+  if (!selectedProject) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Test Suites</h1>
+          <p className="text-muted-foreground mt-1">
+            Select a project to view test suites
+          </p>
+        </div>
+        <NoProjectSelected description="Please select a project from the header to view and manage test suites." />
+      </div>
+    )
+  }
 
   if (isLoading) {
     return (
@@ -304,7 +419,7 @@ export default function TestSuitesPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Test Suites</h1>
           <p className="text-muted-foreground mt-1">
-            Organize test cases into suites
+            {selectedProject.name} / Test Suites
           </p>
         </div>
         <SuitesSkeleton />
@@ -317,27 +432,53 @@ export default function TestSuitesPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Test Suites</h1>
         <p className="text-muted-foreground mt-1">
-          Organize test cases into suites
+          {selectedProject.name} / Test Suites
         </p>
       </div>
 
-      <div className="flex justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search suites..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2"
-            >
-              <X className="h-4 w-4 text-muted-foreground" />
-            </button>
-          )}
+      <div className="flex justify-between gap-4 flex-wrap">
+        <div className="flex gap-3 flex-1 min-w-[300px]">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search suites..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2"
+              >
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
+            )}
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <Filter className="h-4 w-4" />
+                {selectedPlanId
+                  ? testPlans.find((p) => p.id === selectedPlanId)?.name || "Filter"
+                  : "All Plans"}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => setSelectedPlanId(null)}>
+                All Test Plans
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {testPlans.map((plan) => (
+                <DropdownMenuItem
+                  key={plan.id}
+                  onClick={() => setSelectedPlanId(plan.id)}
+                >
+                  {plan.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <CreateSuiteDialog
           onSubmit={handleCreate}
@@ -347,24 +488,28 @@ export default function TestSuitesPage() {
               Create Suite
             </Button>
           }
+          testPlans={testPlans}
+          defaultPlanId={selectedPlanId || undefined}
         />
       </div>
 
       {filteredSuites.length === 0 && !searchQuery ? (
         <EmptyState onCreate={() => setIsCreateOpen(true)} />
       ) : filteredSuites.length === 0 ? (
-        <div className="rounded-lg border bg-card p-8 text-center">
-          <p className="text-muted-foreground">No suites match your search.</p>
-          {searchQuery && (
-            <Button
-              variant="link"
-              onClick={() => setSearchQuery("")}
-              className="mt-2"
-            >
-              Clear search
-            </Button>
-          )}
-        </div>
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-muted-foreground">No suites match your search.</p>
+            {searchQuery && (
+              <Button
+                variant="link"
+                onClick={() => setSearchQuery("")}
+                className="mt-2"
+              >
+                Clear search
+              </Button>
+            )}
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-2">
           {filteredSuites.map((suite) => (
@@ -378,9 +523,11 @@ export default function TestSuitesPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <h3 className="font-medium truncate">{suite.name}</h3>
-                  <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                    {suite.projectName}
-                  </span>
+                  {suite.testPlanName && (
+                    <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                      {suite.testPlanName}
+                    </span>
+                  )}
                 </div>
                 {suite.description && (
                   <p className="text-sm text-muted-foreground truncate">
@@ -404,6 +551,14 @@ export default function TestSuitesPage() {
                       <Pencil className="mr-2 h-4 w-4" />
                       Edit
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setCopyMoveSuite({ suite, mode: "copy" })}>
+                      <Copy className="mr-2 h-4 w-4" />
+                      Copy to Plan
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setCopyMoveSuite({ suite, mode: "move" })}>
+                      <Move className="mr-2 h-4 w-4" />
+                      Move to Plan
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onClick={() => handleDelete(suite)}
@@ -425,6 +580,15 @@ export default function TestSuitesPage() {
           ))}
         </div>
       )}
+
+      <CopyMoveDialog
+        isOpen={!!copyMoveSuite}
+        mode={copyMoveSuite?.mode || "copy"}
+        suite={copyMoveSuite?.suite}
+        testPlans={testPlans}
+        onClose={() => setCopyMoveSuite(null)}
+        onComplete={handleCopyMoveComplete}
+      />
     </div>
   )
 }

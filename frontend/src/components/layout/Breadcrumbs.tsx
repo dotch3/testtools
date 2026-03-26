@@ -3,18 +3,20 @@
 import { useTranslations } from "next-intl"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
-import { ChevronRight, Home } from "lucide-react"
+import { ChevronRight, Home, FolderKanban } from "lucide-react"
 import { Fragment } from "react"
+import { useProject } from "@/contexts/ProjectContext"
 
 export function Breadcrumbs() {
   const t = useTranslations("breadcrumbs")
   const pathname = usePathname()
+  const { selectedProject } = useProject()
 
   const segments = pathname.split("/").filter(Boolean)
   const locale = segments[0]
   const paths = segments.slice(1)
 
-  if (paths.length === 0) {
+  if (paths.length === 0 || (paths.length === 1 && paths[0] === "dashboard")) {
     return (
       <nav className="flex items-center gap-1 text-sm text-muted-foreground">
         <Home className="h-4 w-4" />
@@ -34,6 +36,18 @@ export function Breadcrumbs() {
 
   return (
     <nav className="flex items-center gap-1 text-sm">
+      {selectedProject && (
+        <>
+          <Link
+            href={`/${locale}/projects/${selectedProject.id}/dashboard`}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <FolderKanban className="h-4 w-4" />
+          </Link>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </>
+      )}
+
       <Link
         href={`/${locale}/dashboard`}
         className="text-muted-foreground hover:text-foreground transition-colors"

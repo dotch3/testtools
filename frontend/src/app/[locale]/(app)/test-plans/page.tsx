@@ -13,13 +13,16 @@ import {
   Calendar,
   CheckCircle2,
   XCircle,
-  Clock,
-  AlertCircle,
+  FolderKanban,
 } from "lucide-react"
+import { api } from "@/lib/api"
+import { useProject } from "@/contexts/ProjectContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
+import { NoProjectSelected } from "@/components/ui/NoProjectSelected"
 import {
   Dialog,
   DialogContent,
@@ -65,48 +68,11 @@ interface FormErrors {
   name?: string
 }
 
-const mockTestPlans: TestPlan[] = [
-  {
-    id: "1",
-    name: "API Regression Suite",
-    description: "Full regression suite for REST API endpoints",
-    status: "active",
-    createdAt: "2024-03-15",
-    _count: { suites: 5, cases: 124, executions: 45 },
-    latestExecution: { passed: 118, failed: 6, status: "failed" },
-  },
-  {
-    id: "2",
-    name: "UI Smoke Tests",
-    description: "Critical UI flows smoke test",
-    status: "active",
-    createdAt: "2024-03-10",
-    _count: { suites: 3, cases: 45, executions: 30 },
-    latestExecution: { passed: 45, failed: 0, status: "passed" },
-  },
-  {
-    id: "3",
-    name: "Login Flow Tests",
-    description: "Authentication and authorization test cases",
-    status: "active",
-    createdAt: "2024-03-05",
-    _count: { suites: 2, cases: 28, executions: 20 },
-    latestExecution: { passed: 28, failed: 0, status: "passed" },
-  },
-  {
-    id: "4",
-    name: "Payment Integration",
-    description: "Payment gateway integration tests",
-    status: "draft",
-    createdAt: "2024-03-01",
-    _count: { suites: 1, cases: 15, executions: 0 },
-  },
-]
-
 const statusColors: Record<string, { bg: string; text: string; label: string }> = {
   active: { bg: "bg-green-500/10", text: "text-green-600", label: "Active" },
   draft: { bg: "bg-gray-500/10", text: "text-gray-600", label: "Draft" },
   archived: { bg: "bg-yellow-500/10", text: "text-yellow-600", label: "Archived" },
+  completed: { bg: "bg-blue-500/10", text: "text-blue-600", label: "Completed" },
 }
 
 function CreateTestPlanDialog({
@@ -169,7 +135,6 @@ function CreateTestPlanDialog({
 
           {error && (
             <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm">
-              <AlertCircle className="h-4 w-4" />
               {error}
             </div>
           )}
@@ -223,24 +188,22 @@ function CreateTestPlanDialog({
 function TestPlansSkeleton() {
   return (
     <div className="space-y-4">
-      <div className="flex justify-between">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-10 w-40" />
-      </div>
-      <div className="grid gap-4 md:grid-cols-2">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="rounded-lg border p-6 space-y-4">
-            <div className="flex justify-between">
-              <Skeleton className="h-6 w-48" />
-              <Skeleton className="h-6 w-16" />
-            </div>
-            <Skeleton className="h-4 w-full" />
-            <div className="flex gap-4">
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-4 w-20" />
-            </div>
-          </div>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {[1, 2, 3].map((i) => (
+          <Card key={i}>
+            <CardContent className="p-6 space-y-4">
+              <div className="flex justify-between">
+                <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-6 w-16" />
+              </div>
+              <Skeleton className="h-4 w-full" />
+              <div className="flex gap-4">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-20" />
+              </div>
+            </CardContent>
+          </Card>
         ))}
       </div>
     </div>
@@ -249,24 +212,27 @@ function TestPlansSkeleton() {
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="rounded-lg border bg-card p-12 text-center">
-      <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-        <Plus className="h-8 w-8 text-muted-foreground" />
-      </div>
-      <h3 className="text-lg font-medium mb-1">No test plans yet</h3>
-      <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-        Create your first test plan to start organizing and managing your test
-        cases effectively.
-      </p>
-      <Button onClick={onCreate}>
-        <Plus className="mr-2 h-4 w-4" />
-        Create Test Plan
-      </Button>
-    </div>
+    <Card>
+      <CardContent className="p-12 text-center">
+        <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+          <FolderKanban className="h-8 w-8 text-muted-foreground" />
+        </div>
+        <h3 className="text-lg font-medium mb-2">No test plans yet</h3>
+        <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
+          Create your first test plan to start organizing and managing your test
+          cases effectively.
+        </p>
+        <Button onClick={onCreate}>
+          <Plus className="mr-2 h-4 w-4" />
+          Create Test Plan
+        </Button>
+      </CardContent>
+    </Card>
   )
 }
 
 export default function TestPlansPage() {
+  const { selectedProject } = useProject()
   const [testPlans, setTestPlans] = useState<TestPlan[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
@@ -274,46 +240,92 @@ export default function TestPlansPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const loadTestPlans = useCallback(async () => {
+    if (!selectedProject) {
+      setTestPlans([])
+      setIsLoading(false)
+      return
+    }
+
     setIsLoading(true)
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    setTestPlans(mockTestPlans)
-    setIsLoading(false)
-  }, [])
+    try {
+      const data = await api.get<any[]>(`/projects/${selectedProject.id}/test-plans`)
+      setTestPlans(data.map(plan => ({
+        id: plan.id,
+        name: plan.name,
+        description: plan.description,
+        status: plan.status?.value || plan.statusId?.split('-').pop() || 'draft',
+        createdAt: plan.createdAt,
+        _count: { 
+          suites: plan._count?.suites || 0, 
+          cases: plan._count?.cases || 0,
+          executions: plan._count?.executions || 0 
+        },
+        latestExecution: plan.latestExecution,
+      })))
+    } catch (err) {
+      console.error("Failed to load test plans:", err)
+      setTestPlans([])
+    } finally {
+      setIsLoading(false)
+    }
+  }, [selectedProject])
 
   useEffect(() => {
     loadTestPlans()
   }, [loadTestPlans])
 
   const handleCreate = async (data: TestPlanFormData) => {
-    console.log("Creating:", data)
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    setTestPlans([
-      {
-        id: String(Date.now()),
-        name: data.name,
-        description: data.description,
-        status: "active",
-        createdAt: new Date().toISOString().split("T")[0],
-        _count: { suites: 0, cases: 0, executions: 0 },
-      },
-      ...testPlans,
-    ])
-    setIsCreateOpen(false)
+    if (!selectedProject) return
+    
+    const newPlan = await api.post<any>(`/projects/${selectedProject.id}/test-plans`, {
+      name: data.name,
+      description: data.description,
+      statusId: "seed-test_plan_status-active",
+    })
+    
+    setTestPlans([{
+      id: newPlan.id,
+      name: data.name,
+      description: data.description,
+      status: "active",
+      createdAt: newPlan.createdAt || new Date().toISOString(),
+      _count: { suites: 0, cases: 0, executions: 0 },
+    }, ...testPlans])
   }
 
   const handleDelete = async (plan: TestPlan) => {
     if (!confirm(`Delete "${plan.name}"? This cannot be undone.`)) return
     setDeletingId(plan.id)
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    setTestPlans(testPlans.filter((p) => p.id !== plan.id))
-    setDeletingId(null)
+    try {
+      await api.delete(`/test-plans/${plan.id}`)
+      setTestPlans(testPlans.filter((p) => p.id !== plan.id))
+    } catch (err) {
+      console.error("Failed to delete test plan:", err)
+      alert("Failed to delete test plan. Please try again.")
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   const filteredPlans = testPlans.filter(
     (p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.description?.toLowerCase().includes(searchQuery.toLowerCase())
+      (p.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.description || "").toLowerCase().includes(searchQuery.toLowerCase())
   )
+
+  if (!selectedProject) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Test Plans</h1>
+          <p className="text-muted-foreground mt-1">
+            Select a project to view test plans
+          </p>
+        </div>
+        <NoProjectSelected description="Please select a project from the header to view and manage test plans." />
+      </div>
+    )
+  }
 
   if (isLoading) {
     return (
@@ -321,7 +333,7 @@ export default function TestPlansPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Test Plans</h1>
           <p className="text-muted-foreground mt-1">
-            Manage and organize your test plans
+            {selectedProject.name} / Test Plans
           </p>
         </div>
         <TestPlansSkeleton />
@@ -334,7 +346,7 @@ export default function TestPlansPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Test Plans</h1>
         <p className="text-muted-foreground mt-1">
-          Manage and organize your test plans
+          {selectedProject.name} / Test Plans
         </p>
       </div>
 
@@ -370,110 +382,115 @@ export default function TestPlansPage() {
       {filteredPlans.length === 0 && !searchQuery ? (
         <EmptyState onCreate={() => setIsCreateOpen(true)} />
       ) : filteredPlans.length === 0 ? (
-        <div className="rounded-lg border bg-card p-8 text-center">
-          <p className="text-muted-foreground">
-            No test plans match your search.
-          </p>
-          {searchQuery && (
-            <Button
-              variant="link"
-              onClick={() => setSearchQuery("")}
-              className="mt-2"
-            >
-              Clear search
-            </Button>
-          )}
-        </div>
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-muted-foreground">
+              No test plans match your search.
+            </p>
+            {searchQuery && (
+              <Button
+                variant="link"
+                onClick={() => setSearchQuery("")}
+                className="mt-2"
+              >
+                Clear search
+              </Button>
+            )}
+          </CardContent>
+        </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredPlans.map((plan) => {
             const status = statusColors[plan.status] || statusColors.draft
             return (
-              <div
+              <Card
                 key={plan.id}
-                className="rounded-lg border bg-card p-6 transition-all hover:shadow-md hover:border-primary/50"
+                className="transition-all hover:shadow-md hover:border-primary/50 group"
               >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <Link
-                      href={`/test-plans/${plan.id}`}
-                      className="text-lg font-semibold hover:text-primary transition-colors"
-                    >
-                      {plan.name}
-                    </Link>
-                    {plan.description && (
-                      <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                        {plan.description}
-                      </p>
-                    )}
-                  </div>
-                  <span
-                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${status.bg} ${status.text}`}
-                  >
-                    {status.label}
-                  </span>
-                </div>
-
-                <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mb-4">
-                  <span className="flex items-center gap-1">
-                    <Calendar className="h-3.5 w-3.5" />
-                    {new Date(plan.createdAt).toLocaleDateString()}
-                  </span>
-                  <span>{plan._count.suites} suites</span>
-                  <span>{plan._count.cases} cases</span>
-                </div>
-
-                {plan.latestExecution && (
-                  <div className="flex items-center justify-between p-3 rounded-md bg-muted/50 mb-4">
-                    <div className="flex items-center gap-3 text-sm">
-                      <span className="flex items-center gap-1 text-green-600">
-                        <CheckCircle2 className="h-4 w-4" />
-                        {plan.latestExecution.passed}
-                      </span>
-                      <span className="flex items-center gap-1 text-red-600">
-                        <XCircle className="h-4 w-4" />
-                        {plan.latestExecution.failed}
-                      </span>
-                    </div>
-                    <Link
-                      href={`/test-plans/${plan.id}`}
-                      className="text-sm text-primary hover:underline flex items-center gap-1"
-                    >
-                      Run <PlayCircle className="h-3 w-3" />
-                    </Link>
-                  </div>
-                )}
-
-                <div className="flex justify-between items-center pt-4 border-t">
-                  <Link href={`/test-plans/${plan.id}`}>
-                    <Button variant="ghost" size="sm">
-                      View Details
-                    </Button>
-                  </Link>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem disabled>
-                        <Pencil className="mr-2 h-4 w-4" />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => handleDelete(plan)}
-                        disabled={deletingId === plan.id}
-                        className="text-destructive focus:text-destructive"
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <Link
+                        href={`/test-plans/${plan.id}`}
+                        className="text-lg font-semibold hover:text-primary transition-colors"
                       >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        {deletingId === plan.id ? "Deleting..." : "Delete"}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
+                        {plan.name}
+                      </Link>
+                      {plan.description && (
+                        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                          {plan.description}
+                        </p>
+                      )}
+                    </div>
+                    <Badge
+                      variant="secondary"
+                      className={`${status.bg} ${status.text} ml-2`}
+                    >
+                      {status.label}
+                    </Badge>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mb-4">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {new Date(plan.createdAt).toLocaleDateString()}
+                    </span>
+                    <span>{plan._count.suites} suites</span>
+                    <span>{plan._count.cases} cases</span>
+                  </div>
+
+                  {plan.latestExecution && (
+                    <div className="flex items-center justify-between p-3 rounded-md bg-muted/50 mb-4">
+                      <div className="flex items-center gap-3 text-sm">
+                        <span className="flex items-center gap-1 text-green-600">
+                          <CheckCircle2 className="h-4 w-4" />
+                          {plan.latestExecution.passed}
+                        </span>
+                        <span className="flex items-center gap-1 text-red-600">
+                          <XCircle className="h-4 w-4" />
+                          {plan.latestExecution.failed}
+                        </span>
+                      </div>
+                      <Link
+                        href={`/test-plans/${plan.id}`}
+                        className="text-sm text-primary hover:underline flex items-center gap-1"
+                      >
+                        Run <PlayCircle className="h-3 w-3" />
+                      </Link>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-center pt-4 border-t">
+                    <Link href={`/test-plans/${plan.id}`}>
+                      <Button variant="ghost" size="sm">
+                        View Details
+                      </Button>
+                    </Link>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem disabled>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => handleDelete(plan)}
+                          disabled={deletingId === plan.id}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          {deletingId === plan.id ? "Deleting..." : "Delete"}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </CardContent>
+              </Card>
             )
           })}
         </div>

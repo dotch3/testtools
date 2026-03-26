@@ -216,4 +216,39 @@ export async function authRoutes(app: FastifyInstance) {
       }
     },
   )
+
+  app.get(
+    '/auth/me',
+    {
+      preHandler: [requireAuth()],
+      schema: {
+        tags: ['Auth'],
+        summary: 'Get current user profile',
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              email: { type: 'string' },
+              name: { type: 'string' },
+              avatarUrl: { type: 'string' },
+              role: { type: 'object' },
+              projectIds: { type: 'array', items: { type: 'string' } },
+            },
+          },
+        },
+      },
+    },
+    async (request: any, reply: any) => {
+      try {
+        const userProfile = await authService.getUserProfile(request.user.userId)
+        return reply.send(userProfile)
+      } catch (err) {
+        if (err instanceof AuthError) {
+          return reply.status(err.statusCode).send({ error: err.message })
+        }
+        throw err
+      }
+    },
+  )
 }

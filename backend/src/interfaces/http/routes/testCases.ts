@@ -193,4 +193,65 @@ export async function testCaseRoutes(app: FastifyInstance) {
       return reply.status(204).send()
     }
   )
+
+  app.post<{ Params: { id: string }; Body: { targetSuiteId: string } }>(
+    "/cases/:id/copy",
+    {
+      schema: {
+        tags: ["Test Cases"],
+        summary: "Copy test case to another suite",
+        params: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+          },
+        },
+        body: {
+          type: "object",
+          required: ["targetSuiteId"],
+          properties: {
+            targetSuiteId: { type: "string" },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = request.user!
+      const { id } = request.params as { id: string }
+      const { targetSuiteId } = request.body as { targetSuiteId: string }
+
+      const copiedCase = await testCaseService.copy(id, targetSuiteId, user.userId)
+      return reply.status(201).send(copiedCase)
+    }
+  )
+
+  app.patch<{ Params: { id: string }; Body: { targetSuiteId: string } }>(
+    "/cases/:id/move",
+    {
+      schema: {
+        tags: ["Test Cases"],
+        summary: "Move test case to another suite",
+        params: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+          },
+        },
+        body: {
+          type: "object",
+          required: ["targetSuiteId"],
+          properties: {
+            targetSuiteId: { type: "string" },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string }
+      const { targetSuiteId } = request.body as { targetSuiteId: string }
+
+      const movedCase = await testCaseService.move(id, targetSuiteId)
+      return reply.send(movedCase)
+    }
+  )
 }

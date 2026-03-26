@@ -11,11 +11,19 @@ data/
 .env
 .env.local
 .env.podman
-.env.example
+# .env.example
 
 # Service-specific env files
 backend/.env
-frontend/.env*
+backend/.env.local
+frontend/.env
+frontend/.env.local
 
 # Docs (keep plans but ignore generated files)
 docs/superpowers/generated/
+docs/superpowers/plans
+
+
+docker-compose-smtp.yml
+
+TODO.md

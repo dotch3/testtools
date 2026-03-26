@@ -1,7 +1,7 @@
 "use client"
 
 import { useTranslations } from "next-intl"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { api } from "@/lib/api"
 import type { Bug, BugStats, CreateBugInput, UpdateBugInput } from "@/types/bug"
 import { Button } from "@/components/ui/button"
@@ -11,7 +11,6 @@ import {
   Plus,
   Search,
   ExternalLink,
-  Link2,
   Edit,
   Trash2,
   Bug as BugIcon,
@@ -60,12 +59,7 @@ export function BugTable({ projectId, executionId, onRefresh, onCreateBug }: Bug
     sourceId: "",
   })
 
-  useEffect(() => {
-    loadBugs()
-    loadStats()
-  }, [projectId])
-
-  const loadBugs = async () => {
+  const loadBugs = useCallback(async () => {
     try {
       setIsLoading(true)
       const data = await api.get<Bug[]>(`/projects/${projectId}/bugs`)
@@ -75,16 +69,21 @@ export function BugTable({ projectId, executionId, onRefresh, onCreateBug }: Bug
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [projectId])
 
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       const data = await api.get<BugStats>(`/projects/${projectId}/bugs/stats`)
       setStats(data)
     } catch (err) {
       console.error("Failed to load bug stats:", err)
     }
-  }
+  }, [projectId])
+
+  useEffect(() => {
+    loadBugs()
+    loadStats()
+  }, [loadBugs, loadStats])
 
   const handleCreateBug = async () => {
     try {
@@ -170,7 +169,7 @@ export function BugTable({ projectId, executionId, onRefresh, onCreateBug }: Bug
         </Button>
       </div>
 
-      {stats && (
+      {stats && stats.byStatus && (
         <div className="flex gap-4 text-sm">
           <div className="px-3 py-1.5 rounded-md bg-muted">
             Total: <strong>{stats.total}</strong>

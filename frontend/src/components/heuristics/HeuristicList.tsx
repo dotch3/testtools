@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 interface Persona {
   id: string
@@ -92,6 +93,7 @@ export function HeuristicList() {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingHeuristic, setEditingHeuristic] = useState<Heuristic | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<Heuristic | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [copiedTemplate, setCopiedTemplate] = useState<string | null>(null)
 
@@ -147,7 +149,6 @@ export function HeuristicList() {
   }
 
   const handleDelete = async (heuristic: Heuristic) => {
-    if (!confirm(`Delete heuristic "${heuristic.name}"? This cannot be undone.`)) return
     setDeletingId(heuristic.id)
     try {
       await api.delete(`/heuristics/${heuristic.id}`)
@@ -232,7 +233,7 @@ export function HeuristicList() {
               isExpanded={expandedId === heuristic.id}
               onToggle={() => setExpandedId(expandedId === heuristic.id ? null : heuristic.id)}
               onEdit={() => setEditingHeuristic(heuristic)}
-              onDelete={() => handleDelete(heuristic)}
+              onDelete={() => setDeleteConfirm(heuristic)}
               onCopyTemplate={() => copyTemplate(heuristic.template, heuristic.id)}
               copiedTemplate={copiedTemplate === heuristic.id}
               isDeleting={deletingId === heuristic.id}
@@ -251,6 +252,14 @@ export function HeuristicList() {
           heuristic={editingHeuristic}
         />
       )}
+
+      <ConfirmDialog
+        open={deleteConfirm !== null}
+        onOpenChange={(open) => { if (!open) setDeleteConfirm(null) }}
+        title="Delete Heuristic"
+        description={deleteConfirm ? `Delete heuristic "${deleteConfirm.name}"? This cannot be undone.` : ""}
+        onConfirm={() => deleteConfirm && handleDelete(deleteConfirm)}
+      />
     </div>
   )
 }
@@ -746,14 +755,20 @@ export function HeuristicPicker({
 
   return (
     <div className="space-y-2">
-      <Label>Heuristics</Label>
-      <p className="text-xs text-muted-foreground mb-2">
-        Select heuristics to associate with this charter
-      </p>
       {heuristics.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No heuristics available</p>
+        <div className="rounded-md border border-dashed p-4 text-center">
+          <p className="text-sm text-muted-foreground">No heuristics available.</p>
+          <a
+            href="/heuristics"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-primary underline-offset-4 hover:underline mt-1 inline-block"
+          >
+            Create heuristics →
+          </a>
+        </div>
       ) : (
-        <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2">
+        <div className="max-h-48 overflow-y-auto border rounded-md p-2 space-y-1">
           {heuristics.map((heuristic) => (
             <label
               key={heuristic.id}

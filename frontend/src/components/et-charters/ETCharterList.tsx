@@ -56,7 +56,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { HeuristicPicker } from "@/components/heuristics/HeuristicList"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { useProject } from "@/contexts/ProjectContext"
+import { EvidenceManager } from "@/components/evidence/EvidenceManager"
 
 interface TestCase {
   id: string
@@ -131,10 +133,15 @@ const statusColors: Record<string, string> = {
 }
 
 const durationOptions = [
-  { value: "short", label: "Short (30-60 mins)" },
-  { value: "normal", label: "Normal (60-90 mins)" },
-  { value: "long", label: "Long (90-120 mins)" },
+  { value: "short", label: "Short (60 min)", minutes: 60 },
+  { value: "normal", label: "Normal (90 min)", minutes: 90 },
+  { value: "long", label: "Long (120 min)", minutes: 120 },
 ]
+
+function pctToMins(pct: string, duration: string): string {
+  const total = durationOptions.find((d) => d.value === duration)?.minutes ?? 90
+  return `${Math.round((parseInt(pct) / 100) * total)} min`
+}
 
 export function ETCharterList({ suiteId, suiteName, cases, onRefresh }: ETCharterListProps) {
   const [charters, setCharters] = useState<ETCharter[]>([])
@@ -144,9 +151,11 @@ export function ETCharterList({ suiteId, suiteName, cases, onRefresh }: ETCharte
   const [isCreating, setIsCreating] = useState(false)
   const [editingCharter, setEditingCharter] = useState<ETCharter | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<ETCharter | null>(null)
   const [copyMoveCharter, setCopyMoveCharter] = useState<{ charter: ETCharter; mode: "copy" | "move" } | null>(null)
   const [users, setUsers] = useState<User[]>([])
   const [expandedCharter, setExpandedCharter] = useState<string | null>(null)
+  const { selectedProject } = useProject()
 
   const loadCharters = useCallback(async () => {
     setIsLoading(true)
@@ -183,7 +192,6 @@ export function ETCharterList({ suiteId, suiteName, cases, onRefresh }: ETCharte
   }, [suiteId])
 
   const loadUsers = useCallback(async () => {
-    const { selectedProject } = useProject()
     try {
       let data
       if (selectedProject) {
@@ -196,7 +204,7 @@ export function ETCharterList({ suiteId, suiteName, cases, onRefresh }: ETCharte
     } catch (err) {
       console.error("Failed to load users:", err)
     }
-  }, [])
+  }, [selectedProject])
 
   useEffect(() => {
     loadCharters()
@@ -292,7 +300,6 @@ export function ETCharterList({ suiteId, suiteName, cases, onRefresh }: ETCharte
   }
 
   const handleDeleteCharter = async (charter: ETCharter) => {
-    if (!confirm(`Delete ET Charter "${charter.charter}"? This cannot be undone.`)) return
     setDeletingId(charter.id)
     try {
       await api.delete(`/et-charters/${charter.id}`)
@@ -418,7 +425,7 @@ export function ETCharterList({ suiteId, suiteName, cases, onRefresh }: ETCharte
               isExpanded={expandedCharter === charter.id}
               onToggle={() => setExpandedCharter(expandedCharter === charter.id ? null : charter.id)}
               onEdit={() => setEditingCharter(charter)}
-              onDelete={() => handleDeleteCharter(charter)}
+              onDelete={() => setDeleteConfirm(charter)}
               onCopy={() => setCopyMoveCharter({ charter, mode: "copy" })}
               onMove={() => setCopyMoveCharter({ charter, mode: "move" })}
               isDeleting={deletingId === charter.id}
@@ -447,6 +454,14 @@ export function ETCharterList({ suiteId, suiteName, cases, onRefresh }: ETCharte
           onSelect={handleCopyMove}
         />
       )}
+
+      <ConfirmDialog
+        open={deleteConfirm !== null}
+        onOpenChange={(open) => { if (!open) setDeleteConfirm(null) }}
+        title="Delete ET Charter"
+        description={deleteConfirm ? `Delete ET Charter "${deleteConfirm.charter}"? This cannot be undone.` : ""}
+        onConfirm={() => deleteConfirm && handleDeleteCharter(deleteConfirm)}
+      />
     </div>
   )
 }
@@ -727,6 +742,7 @@ interface CharterDialogProps {
 }
 
 function CharterDialog({ users, onSubmit, isSubmitting, trigger, onOpenChange, open, charter }: CharterDialogProps) {
+  const { selectedProject } = useProject()
   const [charterText, setCharterText] = useState(charter?.charter || "")
   const [areas, setAreas] = useState<string[]>(charter?.areas || [""])
   const [startDate, setStartDate] = useState(charter?.startDate?.split("T")[0] || "")
@@ -753,16 +769,19 @@ function CharterDialog({ users, onSubmit, isSubmitting, trigger, onOpenChange, o
     charter?.issues || [{ description: "" }]
   )
   const [error, setError] = useState("")
-  const [activeTab, setActiveTab] = useState("basic")
+  const [charterError, setCharterError] = useState("")
+  const [activeTab, setActiveTab] = useState("charter")
 
   const isEditing = !!charter
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setCharterError("")
 
     if (!charterText.trim()) {
-      setError("Charter is required")
+      setCharterError("Charter is required")
+      setActiveTab("charter")
       return
     }
 
@@ -797,6 +816,7 @@ function CharterDialog({ users, onSubmit, isSubmitting, trigger, onOpenChange, o
         setStartDate("")
         setTesterId("")
         setDuration("normal")
+        setActiveTab("charter")
         setTestDesignPercentage("40")
         setBugInvestigationPercentage("30")
         setSessionSetupPercentage("10")
@@ -818,14 +838,6 @@ function CharterDialog({ users, onSubmit, isSubmitting, trigger, onOpenChange, o
     const newAreas = [...areas]
     newAreas[index] = value
     setAreas(newAreas)
-  }
-
-  const addDataFile = () => setDataFiles([...dataFiles, ""])
-  const removeDataFile = (index: number) => setDataFiles(dataFiles.filter((_, i) => i !== index))
-  const updateDataFile = (index: number, value: string) => {
-    const newDataFiles = [...dataFiles]
-    newDataFiles[index] = value
-    setDataFiles(newDataFiles)
   }
 
   const updateTestNote = (index: number, field: "action", value: string) => {
@@ -924,15 +936,17 @@ function CharterDialog({ users, onSubmit, isSubmitting, trigger, onOpenChange, o
           )}
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
-            <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="basic">Basic Info</TabsTrigger>
-              <TabsTrigger value="notes">Test Notes</TabsTrigger>
-              <TabsTrigger value="bugs">Bugs & Issues</TabsTrigger>
-              <TabsTrigger value="time">Time Breakdown</TabsTrigger>
-              <TabsTrigger value="heuristics">Heuristics</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="charter" className="relative">
+                Charter
+                {charterError && <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-destructive" />}
+              </TabsTrigger>
+              <TabsTrigger value="session">Session</TabsTrigger>
+              <TabsTrigger value="findings">Findings</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="basic" className="space-y-4 pt-4">
+            {/* TAB 1: Charter — what you're testing and how */}
+            <TabsContent value="charter" className="space-y-4 pt-4">
               <div className="grid gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="charter">
@@ -941,9 +955,16 @@ function CharterDialog({ users, onSubmit, isSubmitting, trigger, onOpenChange, o
                   <Input
                     id="charter"
                     value={charterText}
-                    onChange={(e) => setCharterText(e.target.value)}
+                    onChange={(e) => { setCharterText(e.target.value); if (charterError) setCharterError("") }}
                     placeholder="e.g., Verify checkout flow with multiple items in cart."
+                    className={charterError ? "border-destructive" : ""}
                   />
+                  {charterError && (
+                    <p className="text-sm text-destructive flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {charterError}
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid gap-2">
@@ -970,6 +991,28 @@ function CharterDialog({ users, onSubmit, isSubmitting, trigger, onOpenChange, o
                   ))}
                 </div>
 
+                <div className="grid gap-2 pt-2 border-t">
+                  <Label className="text-sm font-medium">Heuristics</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Select testing heuristics to guide this session. Heuristics suggest what to look for and how to approach exploration.
+                  </p>
+                  <HeuristicPicker
+                    selectedHeuristicIds={selectedHeuristicIds}
+                    onToggle={(id) => {
+                      if (selectedHeuristicIds.includes(id)) {
+                        setSelectedHeuristicIds(selectedHeuristicIds.filter((hId) => hId !== id))
+                      } else {
+                        setSelectedHeuristicIds([...selectedHeuristicIds, id])
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* TAB 2: Session — who, when, how long, files, time split */}
+            <TabsContent value="session" className="space-y-4 pt-4">
+              <div className="grid gap-4">
                 <div className="grid grid-cols-3 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="startDate">Start Date</Label>
@@ -1015,34 +1058,154 @@ function CharterDialog({ users, onSubmit, isSubmitting, trigger, onOpenChange, o
                   </div>
                 </div>
 
-                <div className="grid gap-2">
-                  <div className="flex items-center justify-between">
-                    <Label>Data Files</Label>
-                    <Button type="button" variant="outline" size="sm" onClick={addDataFile}>
-                      <Plus className="h-3 w-3 mr-1" /> Add
-                    </Button>
+                <div className="grid gap-3 pt-2 border-t">
+                  <div>
+                    <p className="text-sm font-medium">Time split across activities</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Estimate how your session time was (or will be) distributed. The three activities must total 100%.
+                    </p>
                   </div>
-                  {dataFiles.map((file, i) => (
-                    <div key={i} className="flex gap-2">
-                      <Input
-                        value={file}
-                        onChange={(e) => updateDataFile(i, e.target.value)}
-                        placeholder="/recordings/session-001.webm"
-                        className="flex-1"
-                      />
-                      {dataFiles.length > 1 && (
-                        <Button type="button" variant="ghost" size="sm" onClick={() => removeDataFile(i)}>
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
+
+                  {(() => {
+                    const tdePct = parseInt(testDesignPercentage)
+                    const birPct = parseInt(bugInvestigationPercentage)
+                    const ssPct = parseInt(sessionSetupPercentage)
+                    const totalAllocated = tdePct + birPct + ssPct
+                    const remaining = Math.max(0, 100 - totalAllocated)
+                    const tdeMax = tdePct + remaining
+                    const birMax = birPct + remaining
+                    const ssMax  = ssPct  + remaining
+                    return (
+                      <>
+                        {totalAllocated > 0 && (
+                          <p className={`text-xs ${remaining === 0 ? "text-green-600 font-medium" : "text-muted-foreground"}`}>
+                            {remaining === 0
+                              ? "100% allocated — reduce a slider to reallocate"
+                              : `${totalAllocated}% allocated · ${remaining}% remaining`}
+                          </p>
+                        )}
+
+                        <div className="grid gap-2">
+                          <div className="flex justify-between items-start">
+                            <Label htmlFor="testDesign" className="text-sm">
+                              Test Design & Execution
+                              <span className="block text-xs font-normal text-muted-foreground">Exploring, testing ideas, running checks</span>
+                            </Label>
+                            <span className="text-sm font-medium tabular-nums text-right min-w-[52px]">
+                              {pctToMins(testDesignPercentage, duration)}
+                            </span>
+                          </div>
+                          <Input
+                            id="testDesign"
+                            type="range"
+                            min="0"
+                            max={tdeMax}
+                            step="5"
+                            value={testDesignPercentage}
+                            onChange={(e) => setTestDesignPercentage(e.target.value)}
+                            className="w-full"
+                          />
+                        </div>
+
+                        <div className="grid gap-2">
+                          <div className="flex justify-between items-start">
+                            <Label htmlFor="bugInvest" className="text-sm">
+                              Bug Investigation & Reporting
+                              <span className="block text-xs font-normal text-muted-foreground">Reproducing, documenting, reporting defects</span>
+                            </Label>
+                            <span className="text-sm font-medium tabular-nums text-right min-w-[52px]">
+                              {pctToMins(bugInvestigationPercentage, duration)}
+                            </span>
+                          </div>
+                          <Input
+                            id="bugInvest"
+                            type="range"
+                            min="0"
+                            max={birMax}
+                            step="5"
+                            value={bugInvestigationPercentage}
+                            onChange={(e) => setBugInvestigationPercentage(e.target.value)}
+                            className="w-full"
+                          />
+                        </div>
+
+                        <div className="grid gap-2">
+                          <div className="flex justify-between items-start">
+                            <Label htmlFor="sessionSetup" className="text-sm">
+                              Session Setup
+                              <span className="block text-xs font-normal text-muted-foreground">Reading docs, configuring environment, preparations</span>
+                            </Label>
+                            <span className="text-sm font-medium tabular-nums text-right min-w-[52px]">
+                              {pctToMins(sessionSetupPercentage, duration)}
+                            </span>
+                          </div>
+                          <Input
+                            id="sessionSetup"
+                            type="range"
+                            min="0"
+                            max={ssMax}
+                            step="5"
+                            value={sessionSetupPercentage}
+                            onChange={(e) => setSessionSetupPercentage(e.target.value)}
+                            className="w-full"
+                          />
+                        </div>
+                      </>
+                    )
+                  })()}
+
+                  <div className="grid gap-2">
+                    <div className="flex justify-between">
+                      <Label htmlFor="charterVsOpp" className="text-sm">
+                        On-Charter vs Opportunity
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          How closely you followed the charter vs exploring unexpected areas
+                        </span>
+                      </Label>
+                      <span className="text-sm font-medium tabular-nums">{charterVsOpportunity}% / {100 - parseInt(charterVsOpportunity)}%</span>
                     </div>
-                  ))}
+                    <Input
+                      id="charterVsOpp"
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="5"
+                      value={charterVsOpportunity}
+                      onChange={(e) => setCharterVsOpportunity(e.target.value)}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>← All charter</span>
+                      <span>All opportunity →</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </TabsContent>
 
-            <TabsContent value="notes" className="space-y-4 pt-4">
-              <div className="space-y-4">
+            {/* TAB 3: Findings — notes, opportunities, bugs, issues */}
+            <TabsContent value="findings" className="space-y-6 pt-4">
+              {!isEditing && (
+                <p className="text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+                  These fields are filled in during or after your testing session. You can leave them empty now and update later.
+                </p>
+              )}
+
+              {/* Session Artifacts */}
+              <div className="space-y-2">
+                <div>
+                  <Label>Session Artifacts</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">Recordings, screenshots, logs collected during testing</p>
+                </div>
+                <EvidenceManager
+                  entityType="et_charter"
+                  entityId={charter?.id || "pending-new"}
+                  projectId={selectedProject?.id || ""}
+                />
+              </div>
+
+              {/* Test Notes */}
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Label>Test Notes</Label>
                   <Button type="button" variant="outline" size="sm" onClick={addTestNote}>
@@ -1070,20 +1233,15 @@ function CharterDialog({ users, onSubmit, isSubmitting, trigger, onOpenChange, o
                     <div className="pl-8 space-y-1">
                       {note.bullets.map((bullet, bulletIndex) => (
                         <div key={bulletIndex} className="flex items-center gap-2">
-                          <span className="text-muted-foreground text-sm">-</span>
+                          <span className="text-muted-foreground text-sm">–</span>
                           <Input
                             value={bullet}
                             onChange={(e) => updateTestNoteBullet(noteIndex, bulletIndex, e.target.value)}
-                            placeholder="Observation (e.g., Banner loaded correctly)"
+                            placeholder="Observation"
                             className="flex-1 text-sm"
                           />
                           {note.bullets.length > 1 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeTestNoteBullet(noteIndex, bulletIndex)}
-                            >
+                            <Button type="button" variant="ghost" size="sm" onClick={() => removeTestNoteBullet(noteIndex, bulletIndex)}>
                               <X className="h-3 w-3" />
                             </Button>
                           )}
@@ -1097,9 +1255,10 @@ function CharterDialog({ users, onSubmit, isSubmitting, trigger, onOpenChange, o
                 ))}
               </div>
 
-              <div className="space-y-4 mt-6">
+              {/* Opportunities */}
+              <div className="space-y-3 pt-2 border-t">
                 <div className="flex items-center justify-between">
-                  <Label>Opportunities (Unexpected Findings)</Label>
+                  <Label>Opportunities <span className="text-xs font-normal text-muted-foreground">(unexpected findings)</span></Label>
                   <Button type="button" variant="outline" size="sm" onClick={addOpportunity}>
                     <Plus className="h-3 w-3 mr-1" /> Add
                   </Button>
@@ -1107,7 +1266,7 @@ function CharterDialog({ users, onSubmit, isSubmitting, trigger, onOpenChange, o
                 {opportunities.map((opp, oppIndex) => (
                   <Card key={oppIndex} className="p-4">
                     <div className="flex items-start gap-2 mb-2">
-                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow-100 text-xs flex items-center justify-center mt-2">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-xs flex items-center justify-center mt-2">
                         {oppIndex + 1}
                       </span>
                       <Input
@@ -1125,7 +1284,7 @@ function CharterDialog({ users, onSubmit, isSubmitting, trigger, onOpenChange, o
                     <div className="pl-8 space-y-1">
                       {opp.bullets.map((bullet, bulletIndex) => (
                         <div key={bulletIndex} className="flex items-center gap-2">
-                          <span className="text-yellow-600 text-sm">-</span>
+                          <span className="text-yellow-600 dark:text-yellow-400 text-sm">–</span>
                           <Input
                             value={bullet}
                             onChange={(e) => updateOppBullet(oppIndex, bulletIndex, e.target.value)}
@@ -1133,12 +1292,7 @@ function CharterDialog({ users, onSubmit, isSubmitting, trigger, onOpenChange, o
                             className="flex-1 text-sm"
                           />
                           {opp.bullets.length > 1 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeOppBullet(oppIndex, bulletIndex)}
-                            >
+                            <Button type="button" variant="ghost" size="sm" onClick={() => removeOppBullet(oppIndex, bulletIndex)}>
                               <X className="h-3 w-3" />
                             </Button>
                           )}
@@ -1151,26 +1305,28 @@ function CharterDialog({ users, onSubmit, isSubmitting, trigger, onOpenChange, o
                   </Card>
                 ))}
               </div>
-            </TabsContent>
 
-            <TabsContent value="bugs" className="space-y-4 pt-4">
-              <div className="space-y-4">
+              {/* Bugs */}
+              <div className="space-y-3 pt-2 border-t">
                 <div className="flex items-center justify-between">
-                  <Label>Bugs Found</Label>
+                  <div>
+                    <Label>Bugs Found</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">Quick notes captured during testing. Link formal bug reports from the charter detail view.</p>
+                  </div>
                   <Button type="button" variant="outline" size="sm" onClick={addBug}>
-                    <Plus className="h-3 w-3 mr-1" /> Add Bug
+                    <Plus className="h-3 w-3 mr-1" /> Add
                   </Button>
                 </div>
                 {bugs.map((bug, bugIndex) => (
                   <Card key={bugIndex} className="p-4">
                     <div className="flex items-start gap-2 mb-3">
-                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-red-100 text-red-600 text-xs flex items-center justify-center mt-2">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-xs flex items-center justify-center mt-2">
                         {bugIndex + 1}
                       </span>
                       <Input
                         value={bug.name}
                         onChange={(e) => updateBug(bugIndex, "name", e.target.value)}
-                        placeholder="Bug name (e.g., Shipping doesn't calculate for CEPs starting with 0)"
+                        placeholder="Bug name"
                         className="flex-1"
                       />
                       {bugs.length > 1 && (
@@ -1214,7 +1370,8 @@ function CharterDialog({ users, onSubmit, isSubmitting, trigger, onOpenChange, o
                 ))}
               </div>
 
-              <div className="space-y-4 mt-6">
+              {/* Issues */}
+              <div className="space-y-3 pt-2 border-t">
                 <div className="flex items-center justify-between">
                   <Label>Issues</Label>
                   <Button type="button" variant="outline" size="sm" onClick={addIssue}>
@@ -1223,7 +1380,7 @@ function CharterDialog({ users, onSubmit, isSubmitting, trigger, onOpenChange, o
                 </div>
                 {issues.map((issue, issueIndex) => (
                   <div key={issueIndex} className="flex items-center gap-2">
-                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-orange-100 text-orange-600 text-xs flex items-center justify-center">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 text-xs flex items-center justify-center">
                       {issueIndex + 1}
                     </span>
                     <Input
@@ -1239,111 +1396,6 @@ function CharterDialog({ users, onSubmit, isSubmitting, trigger, onOpenChange, o
                     )}
                   </div>
                 ))}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="time" className="space-y-4 pt-4">
-              <div className="grid gap-4">
-                <p className="text-sm text-muted-foreground">
-                  Define how you split your testing time across different activities.
-                </p>
-
-                <div className="space-y-4">
-                  <div className="grid gap-2">
-                    <div className="flex justify-between">
-                      <Label htmlFor="testDesign">Test Design and Execution</Label>
-                      <span className="text-sm font-medium">{testDesignPercentage}%</span>
-                    </div>
-                    <Input
-                      id="testDesign"
-                      type="range"
-                      min="0"
-                      max="100"
-                      step="5"
-                      value={testDesignPercentage}
-                      onChange={(e) => setTestDesignPercentage(e.target.value)}
-                      className="w-full"
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <div className="flex justify-between">
-                      <Label htmlFor="bugInvest">Bug Investigation and Reporting</Label>
-                      <span className="text-sm font-medium">{bugInvestigationPercentage}%</span>
-                    </div>
-                    <Input
-                      id="bugInvest"
-                      type="range"
-                      min="0"
-                      max="100"
-                      step="5"
-                      value={bugInvestigationPercentage}
-                      onChange={(e) => setBugInvestigationPercentage(e.target.value)}
-                      className="w-full"
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <div className="flex justify-between">
-                      <Label htmlFor="sessionSetup">Session Setup</Label>
-                      <span className="text-sm font-medium">{sessionSetupPercentage}%</span>
-                    </div>
-                    <Input
-                      id="sessionSetup"
-                      type="range"
-                      min="0"
-                      max="100"
-                      step="5"
-                      value={sessionSetupPercentage}
-                      onChange={(e) => setSessionSetupPercentage(e.target.value)}
-                      className="w-full"
-                    />
-                  </div>
-
-                  <div className="pt-4 border-t">
-                    <div className="grid gap-2">
-                      <div className="flex justify-between">
-                        <Label htmlFor="charterVsOpp">Charter vs Opportunity</Label>
-                        <span className="text-sm font-medium">{charterVsOpportunity}% / {100 - parseInt(charterVsOpportunity)}%</span>
-                      </div>
-                      <Input
-                        id="charterVsOpp"
-                        type="range"
-                        min="0"
-                        max="100"
-                        step="5"
-                        value={charterVsOpportunity}
-                        onChange={(e) => setCharterVsOpportunity(e.target.value)}
-                        className="w-full"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        How much time was spent on planned charter vs unexpected opportunities
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="heuristics" className="space-y-4 pt-4">
-              <div className="space-y-4">
-                <div className="p-4 bg-muted/50 rounded-lg">
-                  <h4 className="text-sm font-medium mb-2">About Heuristics</h4>
-                  <p className="text-xs text-muted-foreground">
-                    Heuristics are reusable templates that guide you in writing effective test charters. 
-                    Select one or more heuristics that apply to this charter session.
-                  </p>
-                </div>
-                <HeuristicPicker
-                  selectedHeuristicIds={selectedHeuristicIds}
-                  onToggle={(id) => {
-                    if (selectedHeuristicIds.includes(id)) {
-                      setSelectedHeuristicIds(selectedHeuristicIds.filter((hId) => hId !== id))
-                    } else {
-                      setSelectedHeuristicIds([...selectedHeuristicIds, id])
-                    }
-                  }}
-                />
               </div>
             </TabsContent>
           </Tabs>

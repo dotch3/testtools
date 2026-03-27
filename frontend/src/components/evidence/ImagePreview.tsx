@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Image from "next/image"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { X, ChevronLeft, ChevronRight, Download } from "lucide-react"
 
@@ -95,6 +95,8 @@ export function ImagePreview({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[90vw] max-h-[90vh] w-auto h-auto p-0 bg-black/90 border-none">
+        <DialogTitle className="sr-only">{current.fileName}</DialogTitle>
+        <DialogDescription className="sr-only">Image preview — {current.fileName}</DialogDescription>
         <div className="relative flex items-center justify-center w-full h-full min-h-[60vh] min-w-[60vw]">
           {attachments.length > 1 && (
             <Button

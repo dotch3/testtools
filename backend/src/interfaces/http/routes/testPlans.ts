@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify"
 import { testPlanService } from "../../../services/TestPlanService.js"
 import { testCaseService } from "../../../services/TestCaseService.js"
+import { NotFoundError } from "../../../utils/errors.js"
 
 export async function testPlanRoutes(app: FastifyInstance) {
   app.get(
@@ -47,7 +48,7 @@ export async function testPlanRoutes(app: FastifyInstance) {
             endDate: { type: "string" },
           },
         },
-        response: { 201: { type: "object" } },
+        response: { 201: { type: "object", additionalProperties: true } },
       },
     },
     async (request, reply) => {
@@ -93,7 +94,7 @@ export async function testPlanRoutes(app: FastifyInstance) {
       const { id } = request.params as { id: string }
       const plan = await testPlanService.findById(id)
       if (!plan) {
-        throw new Error("Test plan not found")
+        throw new NotFoundError("Test plan not found")
       }
       return plan
     }
@@ -178,7 +179,7 @@ export async function testPlanRoutes(app: FastifyInstance) {
             id: { type: "string" },
           },
         },
-        response: { 201: { type: "object" } },
+        response: { 201: { type: "object", additionalProperties: true } },
       },
     },
     async (request, reply) => {

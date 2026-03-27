@@ -19,7 +19,9 @@ import { bugRoutes } from './interfaces/http/routes/bugs.js'
 import { webhookRoutes } from './interfaces/http/routes/webhooks.js'
 import { adminUsersRoutes } from './interfaces/http/routes/admin/users.js'
 import { evidenceRoutes } from './interfaces/http/routes/evidence.js'
+import { enumRoutes } from './interfaces/http/routes/enums.js'
 import { logger } from './logger.js'
+import { NotFoundError, ForbiddenError, BadRequestError, UnauthorizedError } from './utils/errors.js'
 
 const fastifyLogger = Object.assign(Object.create(Object.getPrototypeOf(logger)), logger, {
   fatal: logger.error.bind(logger),
@@ -37,6 +39,27 @@ export async function buildApp() {
     loggerInstance: fastifyLogger,
     disableRequestLogging: true,
     bodyLimit: 60 * 1024 * 1024, // 60MB
+  })
+
+  app.setErrorHandler((error: Error & { statusCode?: number }, request, reply) => {
+    if (error instanceof NotFoundError) {
+      return reply.status(404).send({ error: error.message })
+    }
+    if (error instanceof ForbiddenError) {
+      return reply.status(403).send({ error: error.message })
+    }
+    if (error instanceof BadRequestError) {
+      return reply.status(400).send({ error: error.message })
+    }
+    if (error instanceof UnauthorizedError) {
+      return reply.status(401).send({ error: error.message })
+    }
+    // Fastify validation errors
+    if (error.statusCode && error.statusCode < 500) {
+      return reply.status(error.statusCode).send({ error: error.message })
+    }
+    logger.error('Unhandled error', { err: error.message, method: request.method, url: request.url })
+    return reply.status(500).send({ error: error.message || 'Internal Server Error' })
   })
 
   await app.register(fastifyMultipart, {
@@ -76,6 +99,7 @@ export async function buildApp() {
   await app.register(etCharterRoutes, { prefix: '/api/v1' })
   await app.register(heuristicRoutes, { prefix: '/api/v1' })
   await app.register(evidenceRoutes, { prefix: '/api/v1' })
+  await app.register(enumRoutes, { prefix: '/api/v1' })
 
   return app
 }

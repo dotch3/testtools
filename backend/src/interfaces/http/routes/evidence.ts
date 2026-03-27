@@ -16,7 +16,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
       const user = request.user!
       const parts = request.parts()
       let file: { filename: string; content: Buffer; mimetype: string } | undefined
-      let entityType: "bug" | "test_case" | "test_execution" | undefined
+      let entityType: "bug" | "test_case" | "test_execution" | "et_charter" | undefined
       let entityId: string | undefined
       let projectId: string | undefined = undefined
 
@@ -32,18 +32,18 @@ export async function evidenceRoutes(app: FastifyInstance) {
             mimetype: part.mimetype || "application/octet-stream",
           }
         } else if (part.type === "field") {
-          if (part.fieldname === "entityType") entityType = part.value as "bug" | "test_case" | "test_execution"
+          if (part.fieldname === "entityType") entityType = part.value as "bug" | "test_case" | "test_execution" | "et_charter"
           if (part.fieldname === "entityId") entityId = part.value as string
           if (part.fieldname === "projectId") projectId = part.value as string
         }
       }
 
       if (!file || !entityType || !entityId) {
-        logger.error({ file: !!file, entityType, entityId, projectId }, "[Evidence] Missing required fields")
+        logger.error("[Evidence] Missing required fields", { file: !!file, entityType, entityId, projectId })
         throw new Error("Missing required fields: file, entityType, entityId")
       }
 
-      logger.info({ entityType, entityId, fileName: file.filename, fileSize: file.content.length }, "[Evidence] Receiving upload request")
+      logger.info("[Evidence] Receiving upload request", { entityType, entityId, fileName: file.filename, fileSize: file.content.length })
 
       const attachment = await evidenceService.uploadEvidence(
         file,
@@ -53,7 +53,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         user.userId
       )
 
-      logger.info({ attachmentId: attachment.id }, "[Evidence] Upload completed successfully")
+      logger.info("[Evidence] Upload completed successfully", { attachmentId: attachment.id })
       return reply.status(201).send(attachment)
     }
   )

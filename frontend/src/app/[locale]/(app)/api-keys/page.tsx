@@ -25,6 +25,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 const apiKeys = [
   {
@@ -71,6 +72,7 @@ export default function ApiKeysPage() {
   const [copiedId, setCopiedId] = useState<number | null>(null)
   const [newKey, setNewKey] = useState<{ name: string; key: string } | null>(null)
   const [selectedScopes, setSelectedScopes] = useState<string[]>(["read"])
+  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
 
   const handleCopy = async (text: string, id: number) => {
     await navigator.clipboard.writeText(text)
@@ -79,7 +81,6 @@ export default function ApiKeysPage() {
   }
 
   const handleDelete = (id: number) => {
-    if (!confirm("Are you sure you want to delete this API key?")) return
     setKeys(keys.filter((k) => k.id !== id))
   }
 
@@ -198,7 +199,7 @@ export default function ApiKeysPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => handleDelete(apiKey.id)}
+                  onClick={() => setDeleteConfirm(apiKey.id)}
                 >
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>
@@ -314,6 +315,14 @@ export default function ApiKeysPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteConfirm !== null}
+        onOpenChange={(open) => { if (!open) setDeleteConfirm(null) }}
+        title="Delete API Key"
+        description="Are you sure you want to delete this API key? This action cannot be undone."
+        onConfirm={() => deleteConfirm !== null && handleDelete(deleteConfirm)}
+      />
     </div>
   )
 }

@@ -90,6 +90,58 @@
     "techStack": "Tech Stack",
     "contribute": "Star the project on GitHub!"
   },
+  "testPlans": {
+    "title": "Test Plans",
+    "selectProject": "Select a project to view test plans",
+    "selectProjectDescription": "Please select a project from the header to view and manage test plans.",
+    "searchPlaceholder": "Search test plans...",
+    "createButton": "Create Test Plan",
+    "noPlansYet": "No test plans yet",
+    "noPlansDescription": "Create your first test plan to start organizing and managing your test cases effectively.",
+    "noPlansFound": "No test plans found",
+    "noPlansFoundDescription": "Try adjusting your search query.",
+    "suites": "suites",
+    "cases": "cases",
+    "executions": "executions",
+    "viewDetails": "View Details",
+    "create": {
+      "title": "Create Test Plan",
+      "description": "A test plan documents the approach, scope, schedule, and resources for your testing activities.",
+      "submit": "Create Test Plan"
+    },
+    "edit": {
+      "title": "Edit Test Plan",
+      "description": "Update the test plan details, scope, and schedule.",
+      "submit": "Save Changes"
+    },
+    "fields": {
+      "name": "Test Plan Name",
+      "namePlaceholder": "e.g., API Regression — Release 2.5",
+      "nameHelp": "A concise name that identifies the product, release, or testing scope.",
+      "objectives": "Objectives & Scope",
+      "objectivesPlaceholder": "Describe the objectives, scope, and what is in and out of scope for this plan.\n\nExample:\n- Goal: validate checkout flow with multiple payment methods\n- In scope: functional tests, regression, exploratory\n- Out of scope: load testing, mobile browsers",
+      "objectivesHelp": "Communicate the test approach to team members. Include objectives, what is in scope, what is out of scope, and any assumptions.",
+      "status": "Status",
+      "schedule": "Schedule",
+      "scheduleHelp": "Set the planned start and end dates for testing activities.",
+      "startDate": "Start Date",
+      "startDateHelp": "Planned date when testing activities begin.",
+      "endDate": "End Date",
+      "endDateHelp": "Planned release or delivery date."
+    },
+    "status": {
+      "draft": "Draft",
+      "active": "Active",
+      "completed": "Completed",
+      "archived": "Archived"
+    },
+    "toasts": {
+      "created": "Test plan created successfully",
+      "updated": "Test plan updated successfully",
+      "deleted": "Test plan deleted successfully",
+      "deleteFailed": "Failed to delete test plan. Please try again."
+    }
+  },
   "settings": {
     "organizationName": "Organization Name",
     "defaultTimezone": "Default Timezone",

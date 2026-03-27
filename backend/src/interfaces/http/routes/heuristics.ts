@@ -49,7 +49,7 @@ export async function heuristicRoutes(app: FastifyInstance) {
             },
           },
         },
-        response: { 201: { type: "object" } },
+        response: { 201: { type: "object", additionalProperties: true } },
       },
     },
     async (request, reply) => {
@@ -198,7 +198,7 @@ export async function heuristicRoutes(app: FastifyInstance) {
             characteristics: { type: "array", items: { type: "string" } },
           },
         },
-        response: { 201: { type: "object" } },
+        response: { 201: { type: "object", additionalProperties: true } },
       },
     },
     async (request, reply) => {
@@ -314,7 +314,7 @@ export async function heuristicRoutes(app: FastifyInstance) {
             heuristicId: { type: "string" },
           },
         },
-        response: { 201: { type: "object" } },
+        response: { 201: { type: "object", additionalProperties: true } },
       },
     },
     async (request, reply) => {

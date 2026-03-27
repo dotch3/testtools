@@ -1,5 +1,9 @@
 import type { FastifyInstance } from "fastify"
 import { projectService } from "../../../services/ProjectService.js"
+import { prisma } from "../../../infrastructure/database/prisma.js"
+import { ForbiddenError } from "../../../utils/errors.js"
+
+const ADMIN_ROLE_ID = "role-admin"
 
 export async function projectRoutes(app: FastifyInstance) {
   app.addHook("onRequest", async (request) => {
@@ -75,6 +79,9 @@ export async function projectRoutes(app: FastifyInstance) {
     },
     async (request, reply) => {
       const user = request.user
+      if (user!.roleId !== ADMIN_ROLE_ID) {
+        throw new ForbiddenError("Only administrators can create projects")
+      }
       const project = await projectService.createProject(
         {
           name: (request.body as { name: string }).name,
@@ -166,6 +173,9 @@ export async function projectRoutes(app: FastifyInstance) {
     },
     async (request, reply) => {
       const user = request.user
+      if (user!.roleId !== ADMIN_ROLE_ID) {
+        throw new ForbiddenError("Only administrators can delete projects")
+      }
       await projectService.deleteProject(request.params.id, user!.userId)
       return reply.status(204).send()
     }
@@ -286,6 +296,68 @@ export async function projectRoutes(app: FastifyInstance) {
         request.params.userId,
         (request.body as { roleId: string }).roleId
       )
+    }
+  )
+
+  app.get<{ Params: { id: string } }>(
+    "/projects/:id/stats",
+    {
+      schema: {
+        tags: ["Projects"],
+        summary: "Get project dashboard statistics",
+        params: {
+          type: "object",
+          properties: { id: { type: "string" } },
+        },
+        response: {
+          200: { type: "object", additionalProperties: true },
+        },
+      },
+    },
+    async (request) => {
+      const user = request.user!
+      const projectId = request.params.id
+      await projectService.getProject(projectId, user.userId)
+
+      const [testPlanCount, testSuiteCount, testCaseCount, executionCount, bugCounts] =
+        await Promise.all([
+          prisma.testPlan.count({ where: { projectId } }),
+          prisma.testSuite.count({ where: { testPlan: { projectId } } }),
+          prisma.testCase.count({ where: { suite: { testPlan: { projectId } } } }),
+          prisma.testExecution.count({ where: { testPlan: { projectId } } }),
+          prisma.bug.groupBy({
+            by: ["statusId"],
+            where: { projectId },
+            _count: { id: true },
+          }),
+        ])
+
+      const bugStatusIds = bugCounts.map((b) => b.statusId)
+      const bugStatuses = await prisma.enumValue.findMany({
+        where: { id: { in: bugStatusIds } },
+        select: { id: true, value: true, label: true },
+      })
+      const statusMap = Object.fromEntries(bugStatuses.map((s) => [s.id, s]))
+
+      const bugsByStatus: Record<string, number> = {}
+      let openBugs = 0
+      for (const row of bugCounts) {
+        const status = statusMap[row.statusId]
+        const key = status?.value ?? row.statusId
+        bugsByStatus[key] = row._count.id
+        if (key === "open" || key === "in_progress" || key === "reopened") {
+          openBugs += row._count.id
+        }
+      }
+
+      return {
+        testPlans: testPlanCount,
+        testSuites: testSuiteCount,
+        testCases: testCaseCount,
+        executions: executionCount,
+        openBugs,
+        bugsByStatus,
+      }
     }
   )
 

@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
+import { useTranslations } from "next-intl"
 import Link from "next/link"
 import {
   Plus,
@@ -42,6 +43,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 interface TestPlan {
   id: string
@@ -49,6 +51,8 @@ interface TestPlan {
   description?: string
   status: string
   statusId?: string
+  startDate?: string
+  endDate?: string
   createdAt: string
   _count: {
     suites: number
@@ -66,6 +70,8 @@ interface TestPlanFormData {
   name: string
   description: string
   statusId: string
+  startDate?: string
+  endDate?: string
 }
 
 interface FormErrors {
@@ -113,6 +119,8 @@ function CreateTestPlanDialog({
   onSubmit: (data: TestPlanFormData) => Promise<void>
   trigger?: React.ReactNode
 }) {
+  const t = useTranslations("testPlans")
+  const tCommon = useTranslations("common")
   const [isOpen, setIsOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState("")
@@ -120,13 +128,15 @@ function CreateTestPlanDialog({
     name: "",
     description: "",
     statusId: "seed-test_plan_status-active",
+    startDate: "",
+    endDate: "",
   })
   const [errors, setErrors] = useState<FormErrors>({})
 
   const validate = (): boolean => {
     const newErrors: FormErrors = {}
     if (!formData.name.trim()) {
-      newErrors.name = "Test plan name is required"
+      newErrors.name = t("fields.name") + " is required"
     } else if (formData.name.length < 3) {
       newErrors.name = "Name must be at least 3 characters"
     }
@@ -143,7 +153,7 @@ function CreateTestPlanDialog({
     try {
       await onSubmit(formData)
       setIsOpen(false)
-      setFormData({ name: "", description: "", statusId: "seed-test_plan_status-active" })
+      setFormData({ name: "", description: "", statusId: "seed-test_plan_status-active", startDate: "", endDate: "" })
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create test plan")
     } finally {
@@ -156,13 +166,11 @@ function CreateTestPlanDialog({
       <DialogTrigger asChild onClick={() => setIsOpen(true)}>
         {trigger}
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Create Test Plan</DialogTitle>
-            <DialogDescription>
-              Create a new test plan to organize your test cases.
-            </DialogDescription>
+            <DialogTitle>{t("create.title")}</DialogTitle>
+            <DialogDescription>{t("create.description")}</DialogDescription>
           </DialogHeader>
 
           {error && (
@@ -171,10 +179,10 @@ function CreateTestPlanDialog({
             </div>
           )}
 
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-5 py-4">
             <div className="grid gap-2">
               <Label htmlFor="name">
-                Name <span className="text-destructive">*</span>
+                {t("fields.name")} <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="name"
@@ -183,32 +191,65 @@ function CreateTestPlanDialog({
                   setFormData({ ...formData, name: e.target.value })
                   if (errors.name) setErrors({ ...errors, name: undefined })
                 }}
-                placeholder="e.g., API Regression Suite"
+                placeholder={t("fields.namePlaceholder")}
                 className={errors.name ? "border-destructive" : ""}
               />
-              {errors.name && (
+              {errors.name ? (
                 <p className="text-sm text-destructive">{errors.name}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">{t("fields.nameHelp")}</p>
               )}
             </div>
+
             <div className="grid gap-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">{t("fields.objectives")}</Label>
               <textarea
                 id="description"
                 value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
-                placeholder="Describe the purpose and scope of this test plan..."
-                className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder={t("fields.objectivesPlaceholder")}
+                rows={6}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
               />
+              <p className="text-xs text-muted-foreground">{t("fields.objectivesHelp")}</p>
+            </div>
+
+            <div className="grid gap-3 pt-1 border-t">
+              <div>
+                <Label className="text-sm font-medium">{t("fields.schedule")}</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">{t("fields.scheduleHelp")}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="startDate" className="text-sm">{t("fields.startDate")}</Label>
+                  <Input
+                    id="startDate"
+                    type="date"
+                    value={formData.startDate || ""}
+                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">{t("fields.startDateHelp")}</p>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="endDate" className="text-sm">{t("fields.endDate")}</Label>
+                  <Input
+                    id="endDate"
+                    type="date"
+                    value={formData.endDate || ""}
+                    onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">{t("fields.endDateHelp")}</p>
+                </div>
+              </div>
             </div>
           </div>
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
-              Cancel
+              {tCommon("cancel")}
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Creating..." : "Create Test Plan"}
+              {isSubmitting ? tCommon("loading") : t("create.submit")}
             </Button>
           </DialogFooter>
         </form>
@@ -226,6 +267,8 @@ function EditTestPlanDialog({
   onSubmit: (data: TestPlanFormData) => Promise<void>
   children: React.ReactNode
 }) {
+  const t = useTranslations("testPlans")
+  const tCommon = useTranslations("common")
   const [isOpen, setIsOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState("")
@@ -233,6 +276,8 @@ function EditTestPlanDialog({
     name: plan.name,
     description: plan.description || "",
     statusId: plan.statusId || "seed-test_plan_status-active",
+    startDate: plan.startDate?.split("T")[0] || "",
+    endDate: plan.endDate?.split("T")[0] || "",
   })
   const [errors, setErrors] = useState<FormErrors>({})
 
@@ -241,13 +286,15 @@ function EditTestPlanDialog({
       name: plan.name,
       description: plan.description || "",
       statusId: plan.statusId || "seed-test_plan_status-active",
+      startDate: plan.startDate?.split("T")[0] || "",
+      endDate: plan.endDate?.split("T")[0] || "",
     })
   }, [plan])
 
   const validate = (): boolean => {
     const newErrors: FormErrors = {}
     if (!formData.name.trim()) {
-      newErrors.name = "Test plan name is required"
+      newErrors.name = t("fields.name") + " is required"
     } else if (formData.name.length < 3) {
       newErrors.name = "Name must be at least 3 characters"
     }
@@ -272,22 +319,20 @@ function EditTestPlanDialog({
   }
 
   const statusOptions = [
-    { value: "seed-test_plan_status-draft", label: "Draft" },
-    { value: "seed-test_plan_status-active", label: "Active" },
-    { value: "seed-test_plan_status-completed", label: "Completed" },
-    { value: "seed-test_plan_status-archived", label: "Archived" },
+    { value: "seed-test_plan_status-draft", label: t("status.draft") },
+    { value: "seed-test_plan_status-active", label: t("status.active") },
+    { value: "seed-test_plan_status-completed", label: t("status.completed") },
+    { value: "seed-test_plan_status-archived", label: t("status.archived") },
   ]
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <div onClick={() => setIsOpen(true)}>{children}</div>
-      <DialogContent>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Edit Test Plan</DialogTitle>
-            <DialogDescription>
-              Update the test plan details.
-            </DialogDescription>
+            <DialogTitle>{t("edit.title")}</DialogTitle>
+            <DialogDescription>{t("edit.description")}</DialogDescription>
           </DialogHeader>
 
           {error && (
@@ -296,10 +341,10 @@ function EditTestPlanDialog({
             </div>
           )}
 
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-5 py-4">
             <div className="grid gap-2">
               <Label htmlFor="edit-name">
-                Name <span className="text-destructive">*</span>
+                {t("fields.name")} <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="edit-name"
@@ -308,27 +353,31 @@ function EditTestPlanDialog({
                   setFormData({ ...formData, name: e.target.value })
                   if (errors.name) setErrors({ ...errors, name: undefined })
                 }}
-                placeholder="e.g., API Regression Suite"
+                placeholder={t("fields.namePlaceholder")}
                 className={errors.name ? "border-destructive" : ""}
               />
-              {errors.name && (
+              {errors.name ? (
                 <p className="text-sm text-destructive">{errors.name}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">{t("fields.nameHelp")}</p>
               )}
             </div>
+
             <div className="grid gap-2">
-              <Label htmlFor="edit-description">Description</Label>
+              <Label htmlFor="edit-description">{t("fields.objectives")}</Label>
               <textarea
                 id="edit-description"
                 value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
-                placeholder="Describe the purpose and scope of this test plan..."
-                className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder={t("fields.objectivesPlaceholder")}
+                rows={6}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
               />
+              <p className="text-xs text-muted-foreground">{t("fields.objectivesHelp")}</p>
             </div>
+
             <div className="grid gap-2">
-              <Label htmlFor="edit-status">Status</Label>
+              <Label htmlFor="edit-status">{t("fields.status")}</Label>
               <select
                 id="edit-status"
                 value={formData.statusId}
@@ -336,19 +385,47 @@ function EditTestPlanDialog({
                 className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
               >
                 {statusOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
             </div>
+
+            <div className="grid gap-3 pt-1 border-t">
+              <div>
+                <Label className="text-sm font-medium">{t("fields.schedule")}</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">{t("fields.scheduleHelp")}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-startDate" className="text-sm">{t("fields.startDate")}</Label>
+                  <Input
+                    id="edit-startDate"
+                    type="date"
+                    value={formData.startDate || ""}
+                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">{t("fields.startDateHelp")}</p>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-endDate" className="text-sm">{t("fields.endDate")}</Label>
+                  <Input
+                    id="edit-endDate"
+                    type="date"
+                    value={formData.endDate || ""}
+                    onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">{t("fields.endDateHelp")}</p>
+                </div>
+              </div>
+            </div>
           </div>
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
-              Cancel
+              {tCommon("cancel")}
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Saving..." : "Save Changes"}
+              {isSubmitting ? tCommon("loading") : t("edit.submit")}
             </Button>
           </DialogFooter>
         </form>
@@ -359,11 +436,16 @@ function EditTestPlanDialog({
 
 export default function TestPlansPage() {
   const { selectedProject } = useProject()
+  const t = useTranslations("testPlans")
+  const tCommon = useTranslations("common")
   const [testPlans, setTestPlans] = useState<TestPlan[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [editingPlan, setEditingPlan] = useState<TestPlan | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<TestPlan | null>(null)
+  const [sortField, setSortField] = useState<"name" | "status" | "createdAt">("name")
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
 
   const loadTestPlans = useCallback(async () => {
     if (!selectedProject) {
@@ -380,11 +462,14 @@ export default function TestPlansPage() {
         name: plan.name,
         description: plan.description,
         status: plan.status?.value || plan.statusId?.split('-').pop() || 'draft',
+        statusId: plan.statusId,
+        startDate: plan.startDate,
+        endDate: plan.endDate,
         createdAt: plan.createdAt,
-        _count: { 
-          suites: plan._count?.suites || 0, 
+        _count: {
+          suites: plan._count?.suites || 0,
           cases: plan._count?.cases || 0,
-          executions: plan._count?.executions || 0 
+          executions: plan._count?.executions || 0
         },
         latestExecution: plan.latestExecution,
       })))
@@ -402,22 +487,26 @@ export default function TestPlansPage() {
 
   const handleCreate = async (data: TestPlanFormData) => {
     if (!selectedProject) return
-    
+
     const newPlan = await api.post<any>(`/projects/${selectedProject.id}/test-plans`, {
       name: data.name,
       description: data.description,
       statusId: "seed-test_plan_status-active",
+      startDate: data.startDate || undefined,
+      endDate: data.endDate || undefined,
     })
-    
+
     setTestPlans([{
       id: newPlan.id,
       name: data.name,
       description: data.description,
       status: "active",
+      startDate: data.startDate || undefined,
+      endDate: data.endDate || undefined,
       createdAt: newPlan.createdAt || new Date().toISOString(),
       _count: { suites: 0, cases: 0, executions: 0 },
     }, ...testPlans])
-    toast.success("Test plan created successfully")
+    toast.success(t("toasts.created"))
   }
 
   const handleUpdate = async (data: TestPlanFormData) => {
@@ -427,6 +516,8 @@ export default function TestPlansPage() {
       name: data.name,
       description: data.description,
       statusId: data.statusId,
+      startDate: data.startDate || null,
+      endDate: data.endDate || null,
     })
 
     setTestPlans(testPlans.map((p) =>
@@ -437,23 +528,24 @@ export default function TestPlansPage() {
             description: data.description,
             status: data.statusId.split('-').pop() || 'draft',
             statusId: data.statusId,
+            startDate: data.startDate || undefined,
+            endDate: data.endDate || undefined,
           }
         : p
     ))
     setEditingPlan(null)
-    toast.success("Test plan updated successfully")
+    toast.success(t("toasts.updated"))
   }
 
   const handleDelete = async (plan: TestPlan) => {
-    if (!confirm(`Delete "${plan.name}"? This cannot be undone.`)) return
     setDeletingId(plan.id)
     try {
       await api.delete(`/test-plans/${plan.id}`)
       setTestPlans(testPlans.filter((p) => p.id !== plan.id))
-      toast.success("Test plan deleted successfully")
+      toast.success(t("toasts.deleted"))
     } catch (err) {
       console.error("Failed to delete test plan:", err)
-      toast.error("Failed to delete test plan. Please try again.")
+      toast.error(t("toasts.deleteFailed"))
     } finally {
       setDeletingId(null)
     }
@@ -465,18 +557,30 @@ export default function TestPlansPage() {
       (p.description || "").toLowerCase().includes(searchQuery.toLowerCase())
   )
 
+  const sortedPlans = useMemo(() => {
+    return [...filteredPlans].sort((a, b) => {
+      let cmp = 0
+      if (sortField === "name") {
+        cmp = (a.name || "").localeCompare(b.name || "")
+      } else if (sortField === "status") {
+        cmp = (a.status || "").localeCompare(b.status || "")
+      } else if (sortField === "createdAt") {
+        cmp = new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
+      }
+      return sortDir === "asc" ? cmp : -cmp
+    })
+  }, [filteredPlans, sortField, sortDir])
+
   const getPlanKey = (plan: TestPlan, index: number) => plan?.id ?? `plan-${index}`
 
   if (!selectedProject) {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Test Plans</h1>
-          <p className="text-muted-foreground mt-1">
-            Select a project to view test plans
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight">{t("title")}</h1>
+          <p className="text-muted-foreground mt-1">{t("selectProject")}</p>
         </div>
-        <NoProjectSelected description="Please select a project from the header to view and manage test plans." />
+        <NoProjectSelected description={t("selectProjectDescription")} />
       </div>
     )
   }
@@ -485,9 +589,9 @@ export default function TestPlansPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Test Plans</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t("title")}</h1>
           <p className="text-muted-foreground mt-1">
-            {selectedProject.name} / Test Plans
+            {selectedProject.name} / {t("title")}
           </p>
         </div>
         <TestPlansSkeleton />
@@ -498,9 +602,9 @@ export default function TestPlansPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Test Plans</h1>
+        <h1 className="text-3xl font-bold tracking-tight">{t("title")}</h1>
         <p className="text-muted-foreground mt-1">
-          {selectedProject.name} / Test Plans
+          {selectedProject.name} / {t("title")}
         </p>
       </div>
 
@@ -508,7 +612,7 @@ export default function TestPlansPage() {
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search test plans..."
+            placeholder={t("searchPlaceholder")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
@@ -522,31 +626,48 @@ export default function TestPlansPage() {
             </button>
           )}
         </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={`${sortField}-${sortDir}`}
+            onChange={(e) => {
+              const [f, d] = e.target.value.split("-") as ["name" | "status" | "createdAt", "asc" | "desc"]
+              setSortField(f)
+              setSortDir(d)
+            }}
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="name-asc">Name A→Z</option>
+            <option value="name-desc">Name Z→A</option>
+            <option value="status-asc">Status A→Z</option>
+            <option value="createdAt-desc">Newest first</option>
+            <option value="createdAt-asc">Oldest first</option>
+          </select>
+        </div>
         <CreateTestPlanDialog
           onSubmit={handleCreate}
           trigger={
             <Button>
               <Plus className="mr-2 h-4 w-4" />
-              Create Test Plan
+              {t("createButton")}
             </Button>
           }
         />
       </div>
 
-      {filteredPlans.length === 0 && !searchQuery ? (
+      {sortedPlans.length === 0 && !searchQuery ? (
         <Card>
           <CardContent className="p-0">
             <EmptyState
               icon={<FolderKanban className="h-8 w-8 text-muted-foreground" />}
-              title="No test plans yet"
-              description="Create your first test plan to start organizing and managing your test cases effectively."
+              title={t("noPlansYet")}
+              description={t("noPlansDescription")}
               action={
                 <CreateTestPlanDialog
                   onSubmit={handleCreate}
                   trigger={
                     <Button>
                       <Plus className="mr-2 h-4 w-4" />
-                      Create Test Plan
+                      {t("createButton")}
                     </Button>
                   }
                 />
@@ -554,26 +675,24 @@ export default function TestPlansPage() {
             />
           </CardContent>
         </Card>
-      ) : filteredPlans.length === 0 ? (
+      ) : sortedPlans.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
-            <p className="text-muted-foreground">
-              No test plans match your search.
-            </p>
+            <p className="text-muted-foreground">{t("noPlansFound")}</p>
             {searchQuery && (
               <Button
                 variant="link"
                 onClick={() => setSearchQuery("")}
                 className="mt-2"
               >
-                Clear search
+                {tCommon("search")}
               </Button>
             )}
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredPlans.map((plan, idx) => {
+          {sortedPlans.map((plan, idx) => {
             const status = statusColors[plan.status] || statusColors.draft
             return (
               <Card
@@ -606,10 +725,12 @@ export default function TestPlansPage() {
                   <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mb-4">
                     <span className="flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
-                      {new Date(plan.createdAt).toLocaleDateString()}
+                      {plan.startDate
+                        ? new Date(plan.startDate).toLocaleDateString()
+                        : new Date(plan.createdAt).toLocaleDateString()}
                     </span>
-                    <span>{plan._count.suites} suites</span>
-                    <span>{plan._count.cases} cases</span>
+                    <span>{plan._count.suites} {t("suites")}</span>
+                    <span>{plan._count.cases} {t("cases")}</span>
                   </div>
 
                   {plan.latestExecution && (
@@ -636,7 +757,7 @@ export default function TestPlansPage() {
                   <div className="flex justify-between items-center pt-4 border-t">
                     <Link href={`/test-plans/${plan.id}`}>
                       <Button variant="ghost" size="sm">
-                        View Details
+                        {t("viewDetails")}
                       </Button>
                     </Link>
                     <DropdownMenu>
@@ -654,7 +775,7 @@ export default function TestPlansPage() {
                         </EditTestPlanDialog>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
-                          onClick={() => handleDelete(plan)}
+                          onClick={() => setDeleteConfirm(plan)}
                           disabled={deletingId === plan.id}
                           className="text-destructive focus:text-destructive"
                         >
@@ -670,6 +791,14 @@ export default function TestPlansPage() {
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleteConfirm !== null}
+        onOpenChange={(open) => { if (!open) setDeleteConfirm(null) }}
+        title="Delete Test Plan"
+        description={deleteConfirm ? `Delete "${deleteConfirm.name}"? This cannot be undone.` : ""}
+        onConfirm={() => deleteConfirm && handleDelete(deleteConfirm)}
+      />
     </div>
   )
 }

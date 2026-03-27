@@ -44,8 +44,11 @@ class ApiClient {
     const fetchOptions = options ?? {}
     const token = this.getToken()
 
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
+    const headers: Record<string, string> = {}
+
+    // Only set Content-Type for requests that have a body
+    if (fetchOptions.body) {
+      headers["Content-Type"] = "application/json"
     }
 
     if (fetchOptions.headers) {
@@ -80,6 +83,10 @@ class ApiClient {
                 return
               }
 
+              if (retryResponse.status === 204 || retryResponse.headers.get("content-length") === "0") {
+                resolve(undefined as T)
+                return
+              }
               resolve(retryResponse.json())
             } catch (err) {
               reject(err)
@@ -113,6 +120,9 @@ class ApiClient {
           throw new Error(error.error ?? error.message ?? `HTTP ${retryResponse.status}`)
         }
 
+        if (retryResponse.status === 204 || retryResponse.headers.get("content-length") === "0") {
+          return undefined as T
+        }
         return retryResponse.json()
       }
 
@@ -127,6 +137,10 @@ class ApiClient {
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
       throw new Error(error.error ?? error.message ?? `HTTP ${response.status}`)
+    }
+
+    if (response.status === 204 || response.headers.get("content-length") === "0") {
+      return undefined as T
     }
 
     return response.json()

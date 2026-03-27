@@ -60,7 +60,7 @@ export async function testCaseRoutes(app: FastifyInstance) {
             automationScriptRef: { type: "string" },
           },
         },
-        response: { 201: { type: "object" } },
+        response: { 201: { type: "object", additionalProperties: true } },
       },
     },
     async (request, reply) => {
@@ -90,7 +90,7 @@ export async function testCaseRoutes(app: FastifyInstance) {
         createdById: user.userId,
       })
 
-      logger.info({ testCaseId: testCase.id, externalId: testCase.externalId }, "[TestCase] Created successfully")
+      logger.info("[TestCase] Created successfully", { testCaseId: testCase.id, externalId: testCase.externalId })
       
       // Return as string to avoid any serialization issues
       const responseString = '{"id":"' + testCase.id + '","externalId":"' + (testCase.externalId || '') + '"}'
@@ -228,6 +228,78 @@ export async function testCaseRoutes(app: FastifyInstance) {
         typeId: body.typeId,
         automationScriptRef: body.automationScriptRef,
       }, user.userId)
+    }
+  )
+
+  app.get<{ Params: { id: string } }>(
+    "/cases/:id/steps",
+    {
+      schema: {
+        tags: ["Test Cases"],
+        summary: "Get steps for a test case",
+        params: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+          },
+        },
+        response: {
+          200: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                order: { type: "number" },
+                action: { type: "string" },
+                expectedResult: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+    },
+    async (request) => {
+      const { id } = request.params as { id: string }
+      const testCase = await testCaseService.findById(id)
+      if (!testCase) {
+        throw new Error("Test case not found")
+      }
+      return (testCase.steps as Array<{ order: number; action: string; expectedResult: string }>) ?? []
+    }
+  )
+
+  app.put<{ Params: { id: string } }>(
+    "/cases/:id/steps",
+    {
+      schema: {
+        tags: ["Test Cases"],
+        summary: "Replace steps for a test case",
+        params: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+          },
+        },
+        body: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["order", "action", "expectedResult"],
+            properties: {
+              order: { type: "number" },
+              action: { type: "string" },
+              expectedResult: { type: "string" },
+            },
+          },
+        },
+        response: { 200: { type: "object", additionalProperties: true } },
+      },
+    },
+    async (request) => {
+      const user = request.user!
+      const { id } = request.params as { id: string }
+      const steps = request.body as Array<{ order: number; action: string; expectedResult: string }>
+      return testCaseService.update(id, { steps }, user.userId)
     }
   )
 

@@ -247,7 +247,13 @@ export function HierarchyBreadcrumb({
       <span className="text-muted-foreground">{planName}</span>
       <ChevronRight className="h-4 w-4 text-muted-foreground" />
       <span className="font-medium">{suiteName}</span>
-      <Button variant="ghost" size="sm" onClick={onChange} className="ml-2 h-6 text-xs">
+      <Button 
+        variant="outline" 
+        size="sm" 
+        onClick={onChange} 
+        className="ml-2 h-7 text-xs border-dashed"
+      >
+        <ChevronRight className="h-3 w-3 mr-1 rotate-180" />
         Change
       </Button>
     </div>

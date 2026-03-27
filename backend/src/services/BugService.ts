@@ -22,6 +22,7 @@ export interface UpdateBugData {
   statusId?: string
   priorityId?: string
   severityId?: string
+  sourceId?: string
   assignedToId?: string | null
 }
 
@@ -105,6 +106,7 @@ export class BugService {
         statusId: data.statusId,
         priorityId: data.priorityId,
         severityId: data.severityId,
+        sourceId: data.sourceId,
         assignedToId: data.assignedToId,
       },
     })

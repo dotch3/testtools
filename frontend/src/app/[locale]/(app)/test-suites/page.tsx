@@ -17,6 +17,7 @@ import {
   Move,
   Filter,
 } from "lucide-react"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import { CopyMoveDialog } from "@/components/test-suites/CopyMoveDialog"
 import { useProject } from "@/contexts/ProjectContext"
@@ -24,6 +25,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent } from "@/components/ui/card"
+import { EmptyState } from "@/components/ui/empty-state"
 import { NoProjectSelected } from "@/components/ui/NoProjectSelected"
 import {
   Dialog,
@@ -70,6 +72,31 @@ interface SuiteFormData {
 interface FormErrors {
   name?: string
   testPlanId?: string
+}
+
+function SuitesSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-10 w-40" />
+      </div>
+      <div className="space-y-2">
+        {[...Array(8)].map((_, i) => (
+          <div key={i} className="flex items-center gap-4 p-4 rounded-lg border">
+            <Skeleton className="h-10 w-10 rounded" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-3 w-32" />
+            </div>
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-8 w-8" />
+            <Skeleton className="h-8 w-24" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function CreateSuiteDialog({
@@ -217,46 +244,153 @@ function CreateSuiteDialog({
   )
 }
 
-function SuitesSkeleton() {
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-between">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-10 w-40" />
-      </div>
-      <div className="space-y-2">
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="flex items-center gap-4 p-4 rounded-lg border">
-            <Skeleton className="h-10 w-10 rounded" />
-            <div className="flex-1 space-y-2">
-              <Skeleton className="h-4 w-48" />
-              <Skeleton className="h-3 w-32" />
-            </div>
-            <Skeleton className="h-4 w-20" />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
+function EditSuiteDialog({
+  suite,
+  testPlans,
+  onSubmit,
+  children,
+}: {
+  suite: TestSuite
+  testPlans: TestPlan[]
+  onSubmit: (data: SuiteFormData) => Promise<void>
+  children: React.ReactNode
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState("")
+  const [formData, setFormData] = useState<SuiteFormData>({
+    name: suite.name,
+    description: suite.description || "",
+    testPlanId: suite.testPlanId || "",
+  })
+  const [errors, setErrors] = useState<FormErrors>({})
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+  useEffect(() => {
+    setFormData({
+      name: suite.name,
+      description: suite.description || "",
+      testPlanId: suite.testPlanId || "",
+    })
+  }, [suite])
+
+  const validate = (): boolean => {
+    const newErrors: FormErrors = {}
+    if (!formData.name.trim()) {
+      newErrors.name = "Suite name is required"
+    } else if (formData.name.length < 3) {
+      newErrors.name = "Name must be at least 3 characters"
+    }
+    if (!formData.testPlanId) {
+      newErrors.testPlanId = "Please select a test plan"
+    }
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    if (!validate()) return
+
+    setIsSubmitting(true)
+    try {
+      await onSubmit(formData)
+      setIsOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update suite")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
-    <Card>
-      <CardContent className="p-12 text-center">
-        <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-          <Folder className="h-8 w-8 text-muted-foreground" />
-        </div>
-        <h3 className="text-lg font-medium mb-2">No test suites yet</h3>
-        <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-          Create test suites to organize your test cases by feature or module.
-        </p>
-        <Button onClick={onCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Create Test Suite
-        </Button>
-      </CardContent>
-    </Card>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <div onClick={() => setIsOpen(true)}>{children}</div>
+      <DialogContent>
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Edit Test Suite</DialogTitle>
+            <DialogDescription>
+              Update the test suite details.
+            </DialogDescription>
+          </DialogHeader>
+
+          {error && (
+            <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm">
+              <AlertCircle className="h-4 w-4" />
+              {error}
+            </div>
+          )}
+
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-name">
+                Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="edit-name"
+                value={formData.name}
+                onChange={(e) => {
+                  setFormData({ ...formData, name: e.target.value })
+                  if (errors.name) setErrors({ ...errors, name: undefined })
+                }}
+                placeholder="e.g., Authentication Tests"
+                className={errors.name ? "border-destructive" : ""}
+              />
+              {errors.name && (
+                <p className="text-sm text-destructive">{errors.name}</p>
+              )}
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <textarea
+                id="edit-description"
+                value={formData.description}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
+                placeholder="Describe the purpose of this test suite..."
+                className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-testPlan">
+                Test Plan <span className="text-destructive">*</span>
+              </Label>
+              <select
+                id="edit-testPlan"
+                value={formData.testPlanId}
+                onChange={(e) => {
+                  setFormData({ ...formData, testPlanId: e.target.value })
+                  if (errors.testPlanId) setErrors({ ...errors, testPlanId: undefined })
+                }}
+                className={`w-full h-10 px-3 rounded-md border bg-background text-sm ${
+                  errors.testPlanId ? "border-destructive" : "border-input"
+                }`}
+              >
+                <option value="">Select a test plan</option>
+                {testPlans.map((plan) => (
+                  <option key={plan.id} value={plan.id}>
+                    {plan.name}
+                  </option>
+                ))}
+              </select>
+              {errors.testPlanId && (
+                <p className="text-sm text-destructive">{errors.testPlanId}</p>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -267,7 +401,7 @@ export default function TestSuitesPage() {
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
-  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [editingSuite, setEditingSuite] = useState<TestSuite | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [copyMoveSuite, setCopyMoveSuite] = useState<{ suite: TestSuite; mode: "copy" | "move" } | null>(null)
 
@@ -341,6 +475,31 @@ export default function TestSuitesPage() {
       testPlanName: plan?.name,
       _count: { cases: 0 },
     }, ...suites])
+    toast.success("Test suite created successfully")
+  }
+
+  const handleUpdate = async (data: SuiteFormData) => {
+    if (!editingSuite) return
+
+    await api.patch<any>(`/suites/${editingSuite.id}`, {
+      name: data.name,
+      description: data.description,
+    })
+
+    const plan = testPlans.find((p) => p.id === data.testPlanId)
+    setSuites(suites.map((s) =>
+      s.id === editingSuite.id
+        ? {
+            ...s,
+            name: data.name,
+            description: data.description,
+            testPlanId: data.testPlanId,
+            testPlanName: plan?.name,
+          }
+        : s
+    ))
+    setEditingSuite(null)
+    toast.success("Test suite updated successfully")
   }
 
   const handleDelete = async (suite: TestSuite) => {
@@ -349,9 +508,10 @@ export default function TestSuitesPage() {
     try {
       await api.delete(`/suites/${suite.id}`)
       setSuites(suites.filter((s) => s.id !== suite.id))
+      toast.success("Test suite deleted successfully")
     } catch (err) {
       console.error("Failed to delete suite:", err)
-      alert("Failed to delete suite. Please try again.")
+      toast.error("Failed to delete suite. Please try again.")
     } finally {
       setDeletingId(null)
     }
@@ -373,6 +533,7 @@ export default function TestSuitesPage() {
           testPlanId: newPlanId,
           testPlanName: targetPlan?.name,
         }, ...suites])
+        toast.success("Test suite copied successfully")
       } else {
         await api.patch(`/suites/${copyMoveSuite.suite.id}/move`, {
           targetPlanId: newPlanId,
@@ -385,10 +546,11 @@ export default function TestSuitesPage() {
               : s
           )
         )
+        toast.success("Test suite moved successfully")
       }
     } catch (err) {
       console.error(`Failed to ${copyMoveSuite.mode} suite:`, err)
-      alert(`Failed to ${copyMoveSuite.mode} suite. Please try again.`)
+      toast.error(`Failed to ${copyMoveSuite.mode} suite. Please try again.`)
     }
     setCopyMoveSuite(null)
   }
@@ -494,7 +656,28 @@ export default function TestSuitesPage() {
       </div>
 
       {filteredSuites.length === 0 && !searchQuery ? (
-        <EmptyState onCreate={() => setIsCreateOpen(true)} />
+        <Card>
+          <CardContent className="p-0">
+            <EmptyState
+              icon={<Folder className="h-8 w-8 text-muted-foreground" />}
+              title="No test suites yet"
+              description="Create test suites to organize your test cases by feature or module."
+              action={
+                <CreateSuiteDialog
+                  onSubmit={handleCreate}
+                  testPlans={testPlans}
+                  defaultPlanId={selectedPlanId || undefined}
+                  trigger={
+                    <Button>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Create Test Suite
+                    </Button>
+                  }
+                />
+              }
+            />
+          </CardContent>
+        </Card>
       ) : filteredSuites.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
@@ -547,10 +730,12 @@ export default function TestSuitesPage() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem disabled>
-                      <Pencil className="mr-2 h-4 w-4" />
-                      Edit
-                    </DropdownMenuItem>
+                    <EditSuiteDialog suite={suite} testPlans={testPlans} onSubmit={handleUpdate}>
+                      <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setEditingSuite(suite) }}>
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Edit
+                      </DropdownMenuItem>
+                    </EditSuiteDialog>
                     <DropdownMenuItem onClick={() => setCopyMoveSuite({ suite, mode: "copy" })}>
                       <Copy className="mr-2 h-4 w-4" />
                       Copy to Plan

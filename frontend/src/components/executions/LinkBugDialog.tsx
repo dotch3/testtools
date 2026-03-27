@@ -113,7 +113,7 @@ export function LinkBugDialog({
     setIsSubmitting(true)
     try {
       if (mode === "create") {
-        await api.post(`/projects/${projectId}/bugs`, {
+        const newBug = await api.post<any>(`/projects/${projectId}/bugs`, {
           title: newBugTitle,
           description: newBugDescription,
           priorityId: newBugPriority,
@@ -121,6 +121,11 @@ export function LinkBugDialog({
           severityId: "seed-bug_severity-major",
           sourceId: "seed-bug_source-internal",
         })
+        linkedBugIds.push(newBug.id)
+      }
+
+      for (const bugId of linkedBugIds) {
+        await api.post(`/bugs/${bugId}/executions/${execution!.id}`)
       }
       onComplete()
     } catch (err) {

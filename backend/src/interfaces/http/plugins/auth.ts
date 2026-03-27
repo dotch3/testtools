@@ -37,6 +37,8 @@ export default fp(async (app: FastifyInstance) => {
       '/api/v1/auth/verify-email',
     ]
     if (publicAuthRoutes.some(route => request.url.startsWith(route))) return
+    
+    if (request.url.includes('/evidence/') && request.url.endsWith('/file')) return
 
     const authHeader = request.headers.authorization
     if (!authHeader?.startsWith('Bearer ')) {

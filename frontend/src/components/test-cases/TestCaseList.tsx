@@ -1,7 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { api } from "@/lib/api"
+import { toast } from "sonner"
+import { useProject } from "@/contexts/ProjectContext"
 import {
   Plus,
   Pencil,
@@ -10,6 +12,13 @@ import {
   AlertCircle,
   Search,
   X,
+  Copy,
+  Move,
+  CheckSquare,
+  Square,
+  UserPlus,
+  Eye,
+  Paperclip,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -39,12 +48,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { CopyMoveCaseDialog } from "./CopyMoveCaseDialog"
+import { EvidenceManager } from "@/components/evidence/EvidenceManager"
 
 export interface TestCaseRow {
   id: string
   title: string
   description?: string
   preconditions?: string
+  notes?: string
   steps?: Array<{ order: number; action: string; expectedResult: string }>
   priority: {
     value: string
@@ -64,6 +76,7 @@ interface TestCaseFormData {
   title: string
   description: string
   preconditions: string
+  notes: string
   priorityId: string
   typeId: string
   steps: Array<{ order: number; action: string; expectedResult: string }>
@@ -75,6 +88,45 @@ interface TestCaseFormErrors {
   typeId?: string
 }
 
+function DeleteTestCaseDialog({
+  isOpen,
+  testCase,
+  onClose,
+  onConfirm,
+  isDeleting,
+}: {
+  isOpen: boolean
+  testCase: TestCaseRow | null
+  onClose: () => void
+  onConfirm: () => void
+  isDeleting: boolean
+}) {
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete Test Case</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to delete "{testCase?.title}"? This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={onConfirm}
+            disabled={isDeleting}
+          >
+            {isDeleting ? "Deleting..." : "Delete"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 interface TestCaseListProps {
   suiteId: string
   cases: TestCaseRow[]
@@ -84,6 +136,30 @@ interface TestCaseListProps {
   onSelect?: (testCase: TestCaseRow) => void
 }
 
+function EvidenceManagerForTestCase({ caseId, suiteId }: { caseId: string; suiteId: string }) {
+  const { selectedProject } = useProject()
+  if (!selectedProject) return null
+  
+  if (!caseId) {
+    return (
+      <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center">
+        <p className="text-sm text-muted-foreground">
+          Save the test case first, then you can add attachments
+        </p>
+      </div>
+    )
+  }
+  
+  return (
+    <EvidenceManager
+      entityType="test_case"
+      entityId={caseId}
+      projectId={selectedProject.id}
+      suiteId={suiteId}
+    />
+  )
+}
+
 function TestCaseFormDialog({
   isOpen,
   onClose,
@@ -91,23 +167,43 @@ function TestCaseFormDialog({
   testCase,
   isSubmitting,
   error,
+  suiteId,
 }: {
   isOpen: boolean
   onClose: () => void
-  onSubmit: (data: TestCaseFormData) => Promise<void>
+  onSubmit: (data: TestCaseFormData, pendingFiles?: File[]) => Promise<void>
   testCase?: TestCaseRow | null
   isSubmitting: boolean
   error?: string
+  suiteId: string
 }) {
   const [formData, setFormData] = useState<TestCaseFormData>({
     title: testCase?.title || "",
     description: testCase?.description || "",
     preconditions: testCase?.preconditions || "",
+    notes: testCase?.notes || "",
     priorityId: testCase?.priority?.value || "seed-test_priority-medium",
     typeId: testCase?.type?.value || "seed-test_type-manual",
     steps: testCase?.steps?.map((s, i) => ({ ...s, order: i + 1 })) || [{ order: 1, action: "", expectedResult: "" }],
   })
   const [errors, setErrors] = useState<TestCaseFormErrors>({})
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        title: testCase?.title || "",
+        description: testCase?.description || "",
+        preconditions: testCase?.preconditions || "",
+        notes: testCase?.notes || "",
+        priorityId: testCase?.priority?.value || "seed-test_priority-medium",
+        typeId: testCase?.type?.value || "seed-test_type-manual",
+        steps: testCase?.steps?.map((s, i) => ({ ...s, order: i + 1 })) || [{ order: 1, action: "", expectedResult: "" }],
+      })
+      setErrors({})
+      setPendingFiles([])
+    }
+  }, [isOpen, testCase])
 
   const validate = (): boolean => {
     const newErrors: TestCaseFormErrors = {}
@@ -130,7 +226,7 @@ function TestCaseFormDialog({
     e.preventDefault()
     if (!validate()) return
     const validSteps = formData.steps.filter(s => s.action.trim() || s.expectedResult.trim())
-    await onSubmit({ ...formData, steps: validSteps })
+    await onSubmit({ ...formData, steps: validSteps }, pendingFiles)
   }
 
   const addStep = () => {
@@ -177,6 +273,11 @@ function TestCaseFormDialog({
             <DialogTitle>
               {testCase ? "Edit Test Case" : "Create Test Case"}
             </DialogTitle>
+            {testCase && (
+              <p className="text-sm text-muted-foreground font-mono">
+                ID: TC-{testCase.id.substring(0, 8).toUpperCase()}
+              </p>
+            )}
             <DialogDescription>
               {testCase
                 ? "Update the test case details."
@@ -235,6 +336,71 @@ function TestCaseFormDialog({
                 placeholder="Any setup or prerequisites needed..."
                 className="min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="notes">Notes / Observations</Label>
+              <textarea
+                id="notes"
+                value={formData.notes}
+                onChange={(e) =>
+                  setFormData({ ...formData, notes: e.target.value })
+                }
+                placeholder="Add any notes, observations, or attachments references..."
+                className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Attachments / Evidence</Label>
+              {!testCase ? (
+                <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4">
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*,.pdf,.doc,.docx,.txt,.log,.xlsx,.xls"
+                    className="hidden"
+                    id="pending-files"
+                    onChange={(e) => {
+                      console.log("[TestCase] File input changed, files:", e.target.files?.length || 0)
+                      if (e.target.files) {
+                        const files = Array.from(e.target.files)
+                        console.log("[TestCase] Selected files:", files.map(f => f.name))
+                        setPendingFiles(files)
+                      }
+                    }}
+                  />
+                  <label htmlFor="pending-files" className="cursor-pointer flex flex-col items-center">
+                    <Paperclip className="h-6 w-6 text-muted-foreground mb-2" />
+                    <span className="text-sm text-muted-foreground">
+                      Click to attach files
+                    </span>
+                    <span className="text-xs text-muted-foreground mt-1">
+                      Images, PDF, documents, logs, spreadsheets
+                    </span>
+                  </label>
+                  {pendingFiles.length > 0 && (
+                    <div className="mt-3 space-y-1">
+                      {pendingFiles.map((file, idx) => (
+                        <div key={idx} className="flex items-center justify-between text-sm bg-muted/50 p-2 rounded">
+                          <span className="truncate">{file.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setPendingFiles(pendingFiles.filter((_, i) => i !== idx))}
+                            className="text-destructive hover:text-destructive/80"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <EvidenceManagerForTestCase 
+                  caseId={testCase.id} 
+                  suiteId={suiteId} 
+                />
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -420,6 +586,468 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
   )
 }
 
+interface BulkMoveDialogProps {
+  isOpen: boolean
+  testCases: Array<{ id: string; title: string }>
+  suiteId: string
+  onClose: () => void
+  onComplete: () => void
+}
+
+function BulkMoveDialog({ isOpen, testCases, suiteId, onClose, onComplete }: BulkMoveDialogProps) {
+  const [suites, setSuites] = useState<Array<{ id: string; name: string; testPlanName?: string }>>([])
+  const [testPlans, setTestPlans] = useState<Array<{ id: string; name: string }>>([])
+  const [selectedPlanId, setSelectedPlanId] = useState<string>("")
+  const [selectedSuiteId, setSelectedSuiteId] = useState<string>("")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const loadData = async () => {
+    setIsLoading(true)
+    try {
+      const [plansRes, suitesRes] = await Promise.all([
+        api.get<any[]>("/projects/current/test-plans").catch(() => []),
+        api.get<any[]>(`/suites/${suiteId}`).then(s => {
+          if (s && typeof s === 'object' && 'id' in s) {
+            return [s]
+          }
+          return []
+        }).catch(() => [])
+      ])
+
+      setTestPlans(Array.isArray(plansRes) ? plansRes.map((p: any) => ({ id: p.id, name: p.name })) : [])
+      
+      if (Array.isArray(suitesRes)) {
+        setSuites(suitesRes.map((s: any) => ({ 
+          id: s.id, 
+          name: s.name,
+          testPlanName: s.testPlan?.name 
+        })))
+      }
+    } catch (err) {
+      console.error("Failed to load data:", err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const loadSuitesForPlan = async (planId: string) => {
+    try {
+      const suitesRes = await api.get<any[]>(`/test-plans/${planId}/suites`)
+      setSuites(suitesRes.map((s: any) => ({ 
+        id: s.id, 
+        name: s.name,
+        testPlanName: testPlans.find(p => p.id === planId)?.name
+      })))
+    } catch (err) {
+      console.error("Failed to load suites:", err)
+      setSuites([])
+    }
+  }
+
+  const handleOpenChange = (open: boolean) => {
+    if (open) {
+      loadData()
+    } else {
+      handleClose()
+    }
+  }
+
+  const handlePlanSelect = (planId: string) => {
+    setSelectedPlanId(planId)
+    setSelectedSuiteId("")
+    loadSuitesForPlan(planId)
+  }
+
+  const handleSubmit = async () => {
+    if (!selectedSuiteId) return
+
+    setIsSubmitting(true)
+    try {
+      await api.post(`/suites/${suiteId}/cases/bulk-move`, {
+        caseIds: testCases.map(c => c.id),
+        targetSuiteId: selectedSuiteId,
+      })
+      onComplete()
+      handleClose()
+    } catch (err) {
+      console.error("Failed to move cases:", err)
+      alert("Failed to move test cases. Please try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleClose = () => {
+    setSelectedPlanId("")
+    setSelectedSuiteId("")
+    setSearchQuery("")
+    setSuites([])
+    onClose()
+  }
+
+  const filteredPlans = testPlans.filter((plan) =>
+    plan.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  const filteredSuites = suites.filter((suite) =>
+    suite.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Move Test Cases</DialogTitle>
+          <DialogDescription>
+            Move {testCases.length} selected test case{testCases.length !== 1 ? "s" : ""} to another suite.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-4 py-4">
+          {isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-4 w-24 mt-4" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-2">
+                <Label htmlFor="bulk-plan-search">Target Test Plan</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="bulk-plan-search"
+                    placeholder="Search test plans..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+
+              <div className="max-h-[150px] overflow-y-auto rounded-md border">
+                {filteredPlans.length === 0 ? (
+                  <div className="p-4 text-center text-sm text-muted-foreground">
+                    No test plans found
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {filteredPlans.map((plan) => (
+                      <button
+                        key={plan.id}
+                        onClick={() => handlePlanSelect(plan.id)}
+                        className={`w-full p-3 text-left hover:bg-muted/50 ${
+                          selectedPlanId === plan.id ? "bg-muted" : ""
+                        }`}
+                      >
+                        <div className="font-medium">{plan.name}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {selectedPlanId && (
+                <>
+                  <div className="grid gap-2">
+                    <Label htmlFor="bulk-suite-search">Target Test Suite</Label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="bulk-suite-search"
+                        placeholder="Search suites..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="max-h-[150px] overflow-y-auto rounded-md border">
+                    {filteredSuites.length === 0 ? (
+                      <div className="p-4 text-center text-sm text-muted-foreground">
+                        No suites found in this plan
+                      </div>
+                    ) : (
+                      <div className="divide-y">
+                        {filteredSuites.map((suite) => (
+                          <button
+                            key={suite.id}
+                            onClick={() => setSelectedSuiteId(suite.id)}
+                            disabled={suite.id === suiteId}
+                            className={`w-full p-3 text-left hover:bg-muted/50 disabled:opacity-50 disabled:cursor-not-allowed ${
+                              selectedSuiteId === suite.id ? "bg-muted" : ""
+                            }`}
+                          >
+                            <div className="font-medium">{suite.name}</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={handleClose}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={!selectedSuiteId || isSubmitting || isLoading}
+          >
+            {isSubmitting ? "Moving..." : `Move ${testCases.length} Case${testCases.length !== 1 ? "s" : ""}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+interface BulkAssignDialogProps {
+  isOpen: boolean
+  testCases: Array<{ id: string; title: string }>
+  suiteId: string
+  onClose: () => void
+  onComplete: () => void
+}
+
+function BulkAssignDialog({ isOpen, testCases, suiteId, onClose, onComplete }: BulkAssignDialogProps) {
+  const [users, setUsers] = useState<Array<{ id: string; name?: string | null; email: string }>>([])
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([])
+  const [searchQuery, setSearchQuery] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const loadUsers = async () => {
+    setIsLoading(true)
+    try {
+      const usersRes = await api.get<any[]>("/users").catch(() => [])
+      setUsers(Array.isArray(usersRes) ? usersRes.map((u: any) => ({ 
+        id: u.id, 
+        name: u.name,
+        email: u.email 
+      })) : [])
+    } catch (err) {
+      console.error("Failed to load users:", err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleOpenChange = (open: boolean) => {
+    if (open) {
+      loadUsers()
+    } else {
+      handleClose()
+    }
+  }
+
+  const handleToggleUser = (userId: string) => {
+    setSelectedUserIds(prev => 
+      prev.includes(userId) 
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    )
+  }
+
+  const handleSubmit = async () => {
+    if (selectedUserIds.length === 0) return
+
+    setIsSubmitting(true)
+    try {
+      await api.post(`/suites/${suiteId}/cases/bulk-assign`, {
+        caseIds: testCases.map(c => c.id),
+        userIds: selectedUserIds,
+      })
+      onComplete()
+      handleClose()
+    } catch (err) {
+      console.error("Failed to assign users:", err)
+      alert("Failed to assign users. Please try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleClose = () => {
+    setSelectedUserIds([])
+    setSearchQuery("")
+    setUsers([])
+    onClose()
+  }
+
+  const filteredUsers = users.filter((user) =>
+    (user.name || user.email).toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Assign Users</DialogTitle>
+          <DialogDescription>
+            Assign users to {testCases.length} selected test case{testCases.length !== 1 ? "s" : ""}.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-4 py-4">
+          {isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-2">
+                <Label htmlFor="user-search">Search Users</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="user-search"
+                    placeholder="Search by name or email..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+
+              <div className="max-h-[200px] overflow-y-auto rounded-md border">
+                {filteredUsers.length === 0 ? (
+                  <div className="p-4 text-center text-sm text-muted-foreground">
+                    No users found
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {filteredUsers.map((user) => (
+                      <button
+                        key={user.id}
+                        onClick={() => handleToggleUser(user.id)}
+                        className={`w-full p-3 text-left hover:bg-muted/50 flex items-center gap-3 ${
+                          selectedUserIds.includes(user.id) ? "bg-muted" : ""
+                        }`}
+                      >
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                          selectedUserIds.includes(user.id) 
+                            ? "bg-primary border-primary" 
+                            : "border-muted-foreground"
+                        }`}>
+                          {selectedUserIds.includes(user.id) && (
+                            <CheckSquare className="h-3 w-3 text-primary-foreground" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-medium">{user.name || "Unnamed User"}</div>
+                          <div className="text-sm text-muted-foreground">{user.email}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {selectedUserIds.length > 0 && (
+                <div className="text-sm text-muted-foreground">
+                  {selectedUserIds.length} user{selectedUserIds.length !== 1 ? "s" : ""} selected
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={handleClose}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={selectedUserIds.length === 0 || isSubmitting || isLoading}
+          >
+            {isSubmitting ? "Assigning..." : `Assign to ${testCases.length} Case${testCases.length !== 1 ? "s" : ""}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+interface BulkDeleteDialogProps {
+  isOpen: boolean
+  testCases: Array<{ id: string; title: string }>
+  suiteId: string
+  onClose: () => void
+  onComplete: () => void
+}
+
+function BulkDeleteDialog({ isOpen, testCases, suiteId, onClose, onComplete }: BulkDeleteDialogProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true)
+    try {
+      await api.post(`/suites/${suiteId}/cases/bulk-delete`, {
+        caseIds: testCases.map(c => c.id),
+      })
+      onComplete()
+      onClose()
+    } catch (err) {
+      console.error("Failed to delete cases:", err)
+      alert("Failed to delete test cases. Please try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleClose = () => {
+    onClose()
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete Test Cases</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to delete {testCases.length} selected test case{testCases.length !== 1 ? "s" : ""}? 
+            This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="max-h-[200px] overflow-y-auto rounded-md border bg-muted/50 p-4">
+          <ul className="space-y-1">
+            {testCases.map((c) => (
+              <li key={c.id} className="text-sm truncate">• {c.title}</li>
+            ))}
+          </ul>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={handleClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Deleting..." : `Delete ${testCases.length} Case${testCases.length !== 1 ? "s" : ""}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function TestCaseList({
   suiteId,
   cases,
@@ -428,12 +1056,19 @@ export function TestCaseList({
   onRefresh,
   onSelect,
 }: TestCaseListProps) {
+  const { selectedProject } = useProject()
   const [searchQuery, setSearchQuery] = useState("")
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingCase, setEditingCase] = useState<TestCaseRow | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formError, setFormError] = useState("")
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deletingCase, setDeletingCase] = useState<TestCaseRow | null>(null)
+  const [copyMoveCase, setCopyMoveCase] = useState<{ testCase: TestCaseRow; mode: "copy" | "move" } | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkMoveOpen, setBulkMoveOpen] = useState(false)
+  const [bulkAssignOpen, setBulkAssignOpen] = useState(false)
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
 
   const filteredCases = cases.filter(
     (c) =>
@@ -441,15 +1076,115 @@ export function TestCaseList({
       c.description?.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const handleCreate = async (data: TestCaseFormData) => {
+  const selectedCases = cases.filter(c => selectedIds.has(c.id))
+  const selectedCount = selectedIds.size
+  const isAllSelected = filteredCases.length > 0 && filteredCases.every(c => selectedIds.has(c.id))
+
+  const handleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filteredCases.map(c => c.id)))
+    }
+  }
+
+  const handleSelectOne = (id: string) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(id)) {
+        newSet.delete(id)
+      } else {
+        newSet.add(id)
+      }
+      return newSet
+    })
+  }
+
+  const handleClearSelection = () => {
+    setSelectedIds(new Set())
+  }
+
+  const handleBulkDeleteComplete = () => {
+    handleClearSelection()
+  }
+
+  const handleBulkMoveComplete = () => {
+    handleClearSelection()
+  }
+
+  const handleBulkAssignComplete = () => {
+    handleClearSelection()
+  }
+
+  const handleCreate = async (data: TestCaseFormData, pendingFiles?: File[]) => {
+    console.log("========================================")
+    console.log("[handleCreate] CALLED with files:", pendingFiles?.length || 0)
+    console.log("========================================")
+    
     setFormError("")
     setIsSubmitting(true)
+    let attachmentsFailed = false
+    
     try {
-      await api.post(`/suites/${suiteId}/cases`, data)
+      const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1"
+      
+      console.log("[TestCase] Creating with files:", pendingFiles?.length || 0)
+      
+      const response = await api.post<{ id: string; externalId: string }>(`/suites/${suiteId}/cases`, data)
+      console.log("[TestCase] API Response:", response)
+      console.log("[TestCase] Created with ID:", response?.id, "externalId:", response?.externalId, "Files to upload:", pendingFiles?.length || 0)
+      
+      const newCaseId = response?.id
+      const newCaseExternalId = response?.externalId
+      
+      if (pendingFiles && pendingFiles.length > 0 && newCaseId) {
+        console.log("[TestCase] Starting file uploads...")
+        for (const file of pendingFiles) {
+          console.log("[TestCase] Uploading file:", file.name, "to case:", newCaseId, "size:", file.size)
+          const fileFormData = new FormData()
+          fileFormData.append("file", file)
+          fileFormData.append("entityType", "test_case")
+          fileFormData.append("entityId", newCaseId)
+          if (selectedProject) {
+            console.log("[TestCase] Using projectId:", selectedProject.id)
+            fileFormData.append("projectId", selectedProject.id)
+          }
+
+          const uploadResponse = await fetch(`${API_URL}/evidence/upload`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+            },
+            body: fileFormData,
+          })
+          
+          console.log("[TestCase] Upload response:", uploadResponse.status, uploadResponse.statusText)
+          if (!uploadResponse.ok) {
+            const errorText = await uploadResponse.text()
+            console.error("[TestCase] Upload failed:", errorText)
+            attachmentsFailed = true
+          } else {
+            console.log("[TestCase] Upload SUCCESS!")
+          }
+        }
+      } else {
+        console.log("[TestCase] No files to upload or no case ID")
+      }
+      
       setIsCreateOpen(false)
+      
+      if (attachmentsFailed) {
+        toast.warning("Test case created, but some attachments failed to upload")
+      } else {
+        toast.success("Test case created successfully")
+      }
+      
       onRefresh()
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to create test case")
+      console.error("[TestCase] Create error:", err)
+      const message = err instanceof Error ? err.message : "Failed to create test case"
+      setFormError(message)
+      toast.error(message)
     } finally {
       setIsSubmitting(false)
     }
@@ -460,30 +1195,30 @@ export function TestCaseList({
     setFormError("")
     setIsSubmitting(true)
     try {
-      await api.patch(`/test-cases/${editingCase.id}`, data)
+      await api.patch(`/cases/${editingCase.id}`, data)
       setEditingCase(null)
+      toast.success("Test case updated successfully")
       onRefresh()
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to update test case")
+      const message = err instanceof Error ? err.message : "Failed to update test case"
+      setFormError(message)
+      toast.error(message)
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const handleDelete = async (testCase: TestCaseRow) => {
-    if (
-      !confirm(
-        `Are you sure you want to delete "${testCase.title}"? This action cannot be undone.`
-      )
-    ) {
-      return
-    }
-    setDeletingId(testCase.id)
+  const handleDelete = async () => {
+    if (!deletingCase) return
+    setDeletingId(deletingCase.id)
     try {
-      await api.delete(`/test-cases/${testCase.id}`)
+      await api.delete(`/cases/${deletingCase.id}`)
+      toast.success("Test case deleted successfully")
       onRefresh()
+      setDeletingCase(null)
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to delete test case")
+      const message = err instanceof Error ? err.message : "Failed to delete test case"
+      toast.error(message)
     } finally {
       setDeletingId(null)
     }
@@ -547,72 +1282,163 @@ export function TestCaseList({
           )}
         </div>
       ) : (
-        <div className="rounded-lg border bg-card overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[40%]">Title</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead className="text-center">Executions</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredCases.map((testCase) => (
-                <TableRow
-                  key={testCase.id}
-                  className="cursor-pointer"
-                  onClick={() => onSelect?.(testCase)}
+        <div className="space-y-3">
+          {selectedCount > 0 && (
+            <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/50">
+              <span className="text-sm font-medium">
+                {selectedCount} selected
+              </span>
+              <div className="flex items-center gap-2 ml-auto">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setBulkAssignOpen(true)}
                 >
-                  <TableCell className="font-medium">{testCase.title}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="outline"
-                      style={{
-                        borderColor: testCase.priority.color,
-                        color: testCase.priority.color,
-                      }}
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  Assign
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setBulkMoveOpen(true)}
+                >
+                  <Move className="mr-2 h-4 w-4" />
+                  Move
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => setBulkDeleteOpen(true)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearSelection}
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Clear
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[40px]">
+                    <button
+                      onClick={handleSelectAll}
+                      className="flex items-center justify-center"
                     >
-                      {testCase.priority.label}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{testCase.type.label}</TableCell>
-                  <TableCell className="text-center">
-                    {testCase._count?.executions ?? 0}
-                  </TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => setEditingCase(testCase)}>
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => handleDelete(testCase)}
-                          disabled={deletingId === testCase.id}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          {deletingId === testCase.id ? "Deleting..." : "Delete"}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+                      {isAllSelected ? (
+                        <CheckSquare className="h-4 w-4 text-primary" />
+                      ) : (
+                        <Square className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </button>
+                  </TableHead>
+                  <TableHead className="w-[80px]">ID</TableHead>
+                  <TableHead className="w-[calc(40%-120px)]">Title</TableHead>
+                  <TableHead>Priority</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead className="text-center">Executions</TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredCases.map((testCase) => (
+                  <TableRow
+                    key={testCase.id}
+                    className={`cursor-pointer ${selectedIds.has(testCase.id) ? "bg-muted/50" : ""}`}
+                    onClick={() => onSelect?.(testCase)}
+                  >
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => handleSelectOne(testCase.id)}
+                        className="flex items-center justify-center"
+                      >
+                        {selectedIds.has(testCase.id) ? (
+                          <CheckSquare className="h-4 w-4 text-primary" />
+                        ) : (
+                          <Square className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </button>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm font-mono text-muted-foreground">TC-{testCase.id.substring(0, 8).toUpperCase()}</span>
+                    </TableCell>
+                    <TableCell 
+                      className="font-medium cursor-pointer hover:text-primary transition-colors"
+                      onClick={() => onSelect ? onSelect(testCase) : setEditingCase(testCase)}
+                    >
+                      {testCase.title}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        style={{
+                          borderColor: testCase.priority.color,
+                          color: testCase.priority.color,
+                        }}
+                      >
+                        {testCase.priority.label}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{testCase.type.label}</TableCell>
+                    <TableCell className="text-center">
+                      {testCase._count?.executions ?? 0}
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => onSelect ? onSelect(testCase) : setEditingCase(testCase)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onSelect?.(testCase)}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            View
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => setCopyMoveCase({ testCase, mode: "copy" })}>
+                            <Copy className="mr-2 h-4 w-4" />
+                            Copy to Suite
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setCopyMoveCase({ testCase, mode: "move" })}>
+                            <Move className="mr-2 h-4 w-4" />
+                            Move to Suite
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => setDeletingCase(testCase)}
+                            disabled={deletingId === testCase.id}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            {deletingId === testCase.id ? "Deleting..." : "Delete"}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       )}
 
@@ -622,6 +1448,7 @@ export function TestCaseList({
         onSubmit={handleCreate}
         isSubmitting={isSubmitting}
         error={formError}
+        suiteId={suiteId}
       />
 
       <TestCaseFormDialog
@@ -631,6 +1458,60 @@ export function TestCaseList({
         testCase={editingCase}
         isSubmitting={isSubmitting}
         error={formError}
+        suiteId={suiteId}
+      />
+
+      <CopyMoveCaseDialog
+        isOpen={!!copyMoveCase}
+        mode={copyMoveCase?.mode || "copy"}
+        testCase={copyMoveCase?.testCase}
+        suiteId={suiteId}
+        onClose={() => setCopyMoveCase(null)}
+        onComplete={() => {
+          onRefresh()
+          setCopyMoveCase(null)
+        }}
+      />
+
+      <BulkMoveDialog
+        isOpen={bulkMoveOpen}
+        testCases={selectedCases}
+        suiteId={suiteId}
+        onClose={() => setBulkMoveOpen(false)}
+        onComplete={() => {
+          handleBulkMoveComplete()
+          onRefresh()
+        }}
+      />
+
+      <BulkAssignDialog
+        isOpen={bulkAssignOpen}
+        testCases={selectedCases}
+        suiteId={suiteId}
+        onClose={() => setBulkAssignOpen(false)}
+        onComplete={() => {
+          handleBulkAssignComplete()
+          onRefresh()
+        }}
+      />
+
+      <BulkDeleteDialog
+        isOpen={bulkDeleteOpen}
+        testCases={selectedCases}
+        suiteId={suiteId}
+        onClose={() => setBulkDeleteOpen(false)}
+        onComplete={() => {
+          handleBulkDeleteComplete()
+          onRefresh()
+        }}
+      />
+
+      <DeleteTestCaseDialog
+        isOpen={!!deletingCase}
+        testCase={deletingCase}
+        onClose={() => setDeletingCase(null)}
+        onConfirm={handleDelete}
+        isDeleting={!!deletingId}
       />
     </div>
   )

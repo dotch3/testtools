@@ -87,5 +87,6 @@ export interface UpdateBugInput {
   statusId?: string
   priorityId?: string
   severityId?: string
+  sourceId?: string
   assignedToId?: string | null
 }

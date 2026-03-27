@@ -17,9 +17,10 @@ import { useProject } from "@/contexts/ProjectContext"
 import { HierarchySelector, HierarchyBreadcrumb } from "@/components/hierarchy/HierarchySelector"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { LoadingSpinner } from "@/components/ui/loading"
+import { EmptyState } from "@/components/ui/empty-state"
 import {
   Table,
   TableBody,
@@ -57,6 +58,42 @@ const statusColors: Record<string, string> = {
   blocked: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
   not_run: "bg-gray-500/10 text-gray-600 border-gray-500/20",
   skipped: "bg-purple-500/10 text-purple-600 border-purple-500/20",
+}
+
+function ExecutionsSkeleton() {
+  return (
+    <div className="rounded-lg border bg-card overflow-hidden">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Test Case</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Executed By</TableHead>
+            <TableHead>Date</TableHead>
+            <TableHead>Duration</TableHead>
+            <TableHead>Platform</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {[...Array(5)].map((_, i) => (
+            <TableRow key={i}>
+              <TableCell>
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-48" />
+                  <Skeleton className="h-3 w-64" />
+                </div>
+              </TableCell>
+              <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+              <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+              <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+              <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+              <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
 }
 
 export default function ExecutionsPage() {
@@ -212,17 +249,15 @@ export default function ExecutionsPage() {
       )}
 
       {isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <LoadingSpinner text="Loading executions..." />
-        </div>
+        <ExecutionsSkeleton />
       ) : filteredExecutions.length === 0 ? (
         <Card>
-          <CardContent className="p-12 text-center">
-            <PlayCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium mb-2">No executions</h3>
-            <p className="text-sm text-muted-foreground">
-              {searchQuery ? "No executions match your search" : "No executions have been run for this plan"}
-            </p>
+          <CardContent className="p-0">
+            <EmptyState
+              icon={<PlayCircle className="h-8 w-8 text-muted-foreground" />}
+              title="No executions yet"
+              description={searchQuery ? "No executions match your search" : "No executions have been run for this plan"}
+            />
           </CardContent>
         </Card>
       ) : (

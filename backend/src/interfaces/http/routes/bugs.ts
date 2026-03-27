@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify"
 import { bugService } from "../../../services/BugService.js"
+import { evidenceService } from "../../../services/EvidenceService.js"
 
 export async function bugRoutes(app: FastifyInstance) {
   app.get(
@@ -129,6 +130,7 @@ export async function bugRoutes(app: FastifyInstance) {
             statusId: { type: "string" },
             priorityId: { type: "string" },
             severityId: { type: "string" },
+            sourceId: { type: "string" },
             assignedToId: { type: "string", nullable: true },
           },
         },
@@ -142,6 +144,7 @@ export async function bugRoutes(app: FastifyInstance) {
         statusId?: string
         priorityId?: string
         severityId?: string
+        sourceId?: string
         assignedToId?: string | null
       }
 
@@ -231,6 +234,50 @@ export async function bugRoutes(app: FastifyInstance) {
     async (request) => {
       const { projectId } = request.params as { projectId: string }
       return bugService.getStats(projectId)
+    }
+  )
+
+  app.get<{ Params: { projectId: string; bugId: string } }>(
+    "/projects/:projectId/bugs/:bugId/evidence",
+    {
+      schema: {
+        tags: ["Bugs"],
+        summary: "Get all evidence for a bug",
+        params: {
+          type: "object",
+          properties: {
+            projectId: { type: "string" },
+            bugId: { type: "string" },
+          },
+        },
+      },
+    },
+    async (request) => {
+      const { bugId } = request.params as { projectId: string; bugId: string }
+      return evidenceService.getByEntity("bug", bugId)
+    }
+  )
+
+  app.delete<{ Params: { projectId: string; bugId: string; attachmentId: string } }>(
+    "/projects/:projectId/bugs/:bugId/evidence/:attachmentId",
+    {
+      schema: {
+        tags: ["Bugs"],
+        summary: "Delete evidence from a bug",
+        params: {
+          type: "object",
+          properties: {
+            projectId: { type: "string" },
+            bugId: { type: "string" },
+            attachmentId: { type: "string" },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { attachmentId } = request.params as { projectId: string; bugId: string; attachmentId: string }
+      await evidenceService.delete(attachmentId)
+      return reply.status(204).send()
     }
   )
 }

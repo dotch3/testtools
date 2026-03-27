@@ -55,6 +55,17 @@ export class TestSuiteService {
     })
   }
 
+  async findAll(): Promise<Array<TestSuite & { testPlan?: { id: string; name: string } }>> {
+    return prisma.testSuite.findMany({
+      include: {
+        testPlan: {
+          select: { id: true, name: true },
+        },
+      },
+      orderBy: { name: "asc" },
+    })
+  }
+
   async getTree(testPlanId: string): Promise<SuiteWithChildren[]> {
     const suites = await prisma.testSuite.findMany({
       where: { testPlanId },

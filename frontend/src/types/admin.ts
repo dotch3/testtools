@@ -24,6 +24,8 @@ export interface CreateUserInput {
 }
 
 export interface UpdateUserInput {
+  name?: string
+  email?: string
   roleId?: string
   forcePasswordChange?: boolean
   locked?: boolean

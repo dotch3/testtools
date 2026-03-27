@@ -1,8 +1,11 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import bcrypt from 'bcrypt'
+import { randomBytes } from 'crypto'
 import { prisma } from '../../../../infrastructure/database/prisma.js'
 import { validatePassword } from '../../../../utils/passwordPolicy.js'
 import { permissionGuard } from '../../plugins/permissionGuard.js'
+import { getMailAdapter } from '../../../../infrastructure/mail/mailFactory.js'
+import { logger } from '../../../../logger.js'
 
 export async function adminUsersRoutes(app: FastifyInstance) {
 
@@ -89,6 +92,61 @@ export async function adminUsersRoutes(app: FastifyInstance) {
     },
   )
 
+  app.post<{ Body: { email: string; name?: string; roleId: string } }>(
+    '/admin/users/invite',
+    {
+      preHandler: [permissionGuard('user', 'create')],
+      schema: {
+        tags: ['Admin'],
+        summary: 'Invite user by email',
+        body: {
+          type: 'object',
+          required: ['email', 'roleId'],
+          properties: {
+            email: { type: 'string' },
+            name: { type: 'string' },
+            roleId: { type: 'string' },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { email, name, roleId } = request.body
+
+      const existing = await prisma.user.findUnique({ where: { email } })
+      if (existing) {
+        return reply.status(400).send({ error: 'User with this email already exists' })
+      }
+
+      const tempPassword = randomBytes(16).toString('hex')
+      const passwordHash = await bcrypt.hash(tempPassword, 12)
+
+      const user = await prisma.user.create({
+        data: {
+          email,
+          name,
+          roleId,
+          passwordHash,
+          forcePasswordChange: true,
+        },
+      })
+
+      try {
+        const mailAdapter = getMailAdapter()
+        if (mailAdapter) {
+          await mailAdapter.sendWelcome(email, name || undefined)
+          logger.info({ action: 'user.invited', userId: user.id, email })
+        } else {
+          logger.warn({ action: 'user.invited_no_mail', userId: user.id, email })
+        }
+      } catch (err) {
+        logger.error({ action: 'user.invite_failed', userId: user.id, error: String(err) })
+      }
+
+      return reply.status(201).send({ id: user.id, email: user.email })
+    },
+  )
+
   app.get<{ Params: { id: string } }>(
     '/admin/users/:id',
     {
@@ -120,7 +178,7 @@ export async function adminUsersRoutes(app: FastifyInstance) {
     },
   )
 
-  app.patch<{ Params: { id: string }; Body: { roleId?: string; forcePasswordChange?: boolean; locked?: boolean } }>(
+  app.patch<{ Params: { id: string }; Body: { name?: string; email?: string; roleId?: string; forcePasswordChange?: boolean; locked?: boolean } }>(
     '/admin/users/:id',
     {
       preHandler: [permissionGuard('user', 'update')],
@@ -131,6 +189,8 @@ export async function adminUsersRoutes(app: FastifyInstance) {
         body: {
           type: 'object',
           properties: {
+            name: { type: 'string' },
+            email: { type: 'string' },
             roleId: { type: 'string' },
             forcePasswordChange: { type: 'boolean' },
             locked: { type: 'boolean' },
@@ -140,6 +200,8 @@ export async function adminUsersRoutes(app: FastifyInstance) {
     },
     async (request, reply) => {
       const data: any = {}
+      if (request.body.name) data.name = request.body.name
+      if (request.body.email) data.email = request.body.email
       if (request.body.roleId) data.roleId = request.body.roleId
       if (typeof request.body.forcePasswordChange === 'boolean') data.forcePasswordChange = request.body.forcePasswordChange
       if (typeof request.body.locked === 'boolean') {
@@ -151,8 +213,9 @@ export async function adminUsersRoutes(app: FastifyInstance) {
       const user = await prisma.user.update({
         where: { id: request.params.id },
         data,
+        include: { role: true },
       })
-      return reply.send({ id: user.id, email: user.email })
+      return reply.send({ id: user.id, email: user.email, name: user.name, roleId: user.roleId })
     },
   )
 

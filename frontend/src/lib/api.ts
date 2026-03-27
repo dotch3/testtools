@@ -65,22 +65,36 @@ class ApiClient {
     if (response.status === 401 && !skipAuth) {
       if (this.isRefreshing) {
         return new Promise((resolve, reject) => {
-          this.subscribeTokenRefresh((newToken) => {
+          this.subscribeTokenRefresh(async (newToken) => {
             headers["Authorization"] = `Bearer ${newToken}`
-            fetch(`${this.baseUrl}${path}`, {
-              ...fetchOptions,
-              method,
-              headers,
-            })
-              .then(res => res.json())
-              .then(resolve)
-              .catch(reject)
+            try {
+              const retryResponse = await fetch(`${this.baseUrl}${path}`, {
+                ...fetchOptions,
+                method,
+                headers,
+              })
+
+              if (!retryResponse.ok) {
+                const error = await retryResponse.json().catch(() => ({}))
+                reject(new Error(error.error ?? error.message ?? `HTTP ${retryResponse.status}`))
+                return
+              }
+
+              resolve(retryResponse.json())
+            } catch (err) {
+              reject(err)
+            }
           })
         })
       }
 
       this.isRefreshing = true
-      const refreshed = await this.tryRefreshToken()
+      let refreshed = await this.tryRefreshToken()
+      
+      if (!refreshed) {
+        refreshed = await this.tryRefreshToken()
+      }
+
       this.isRefreshing = false
 
       if (refreshed) {
@@ -205,10 +219,14 @@ class ApiClient {
     try {
       await this.request("POST", "/auth/logout", {
         body: JSON.stringify({ refreshToken }),
+        skipAuth: true,
       })
     } finally {
       localStorage.removeItem("access_token")
       localStorage.removeItem("refresh_token")
+      if (typeof window !== "undefined") {
+        window.location.href = "/login"
+      }
     }
   }
 

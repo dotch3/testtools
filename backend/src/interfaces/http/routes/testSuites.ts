@@ -2,6 +2,19 @@ import type { FastifyInstance } from "fastify"
 import { testSuiteService } from "../../../services/TestSuiteService.js"
 
 export async function testSuiteRoutes(app: FastifyInstance) {
+  app.get(
+    "/suites",
+    {
+      schema: {
+        tags: ["Test Suites"],
+        summary: "List all test suites",
+      },
+    },
+    async () => {
+      return testSuiteService.findAll()
+    }
+  )
+
   app.get<{ Params: { testPlanId: string } }>(
     "/test-plans/:testPlanId/suites",
     {

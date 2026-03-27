@@ -43,6 +43,9 @@ model User {
   testSuitesCreated TestSuite[]
   testCasesCreated TestCase[]
   executions       TestExecution[]
+  executionStepResults ExecutionStepResult[]
+  etChartersCreated ETCharter[]      @relation("ETCharterCreator")
+  etChartersTested ETCharter[]      @relation("ETCharterTester")
   bugsReported     Bug[]             @relation("BugReportedBy")
   bugsAssigned     Bug[]             @relation("BugAssignedTo")
   attachments      Attachment[]
@@ -254,6 +257,7 @@ model TestSuite {
   name          String
   description   String?
   orderIndex    Int        @default(0)
+  nextCaseNumber Int       @default(1)
   copiedFromId  String?
   createdById   String
   createdBy     User       @relation(fields: [createdById], references: [id])
@@ -262,8 +266,112 @@ model TestSuite {
 
   cases       TestCase[]
   assignees   TestSuiteAssignee[]
+  etCharters  ETCharter[]
 
   @@map("test_suites")
+}
+
+model ETCharter {
+  id                        String    @id @default(uuid())
+  suiteId                   String
+  suite                     TestSuite @relation(fields: [suiteId], references: [id], onDelete: Cascade)
+  charter                   String    // Nome do charter (formato: frase terminada com ponto)
+  areas                     String[]  // Áreas cobradas
+  startDate                 DateTime? // Data/hora de início
+  testerId                  String?   // Testador designado
+  tester                    User?     @relation("ETCharterTester", fields: [testerId], references: [id])
+  
+  // Task Breakdown
+  duration                  String?   // short/normal/long
+  testDesignPercentage     Int?      @default(40)
+  bugInvestigationPercentage Int?    @default(30)
+  sessionSetupPercentage    Int?      @default(10)
+  charterVsOpportunity      Int?      @default(70)  // % de tempo no charter vs oportunidade
+  
+  // Dados
+  dataFiles                 String[]  // Caminhos para arquivos (screenshots, recordings)
+  testNotes                Json?     // [{action: string, bullets: string[]}]
+  opportunities            Json?     // [{action: string, bullets: string[]}]
+  
+  // Resultados
+  bugs                     Json?     // [{name, steps, expected, actual}]
+  issues                   Json?     // [{description}]
+  
+  createdById              String
+  createdBy                User      @relation("ETCharterCreator", fields: [createdById], references: [id])
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  linkedBugs               BugETCharter[]
+  linkedTestCases          ETCharterTestCase[]
+  linkedHeuristics        ETCharterHeuristic[]
+
+  @@map("et_charters")
+}
+
+model Heuristic {
+  id           String    @id @default(uuid())
+  name         String
+  description  String?   // Description and guidance for using this heuristic
+  template     String    // Template string for writing charters
+  elements     Json?    // {risk: bool, coverage: bool, time: bool, style: bool}
+  examples     Json?    // [{charter: string, description: string}]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  personas         Persona[]
+  linkedCharters   ETCharterHeuristic[]
+
+  @@map("heuristics")
+}
+
+model Persona {
+  id              String    @id @default(uuid())
+  heuristicId     String
+  heuristic       Heuristic @relation(fields: [heuristicId], references: [id], onDelete: Cascade)
+  name            String    // e.g., "Admin User", "Power User", "Guest"
+  description     String?   // Persona description
+  characteristics Json?    // ["Full system access", "Can configure settings"]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("personas")
+}
+
+model ETCharterHeuristic {
+  id           String    @id @default(uuid())
+  etCharterId String
+  etCharter    ETCharter @relation(fields: [etCharterId], references: [id], onDelete: Cascade)
+  heuristicId String
+  heuristic    Heuristic @relation(fields: [heuristicId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@unique([etCharterId, heuristicId])
+  @@map("et_charter_heuristics")
+}
+
+model BugETCharter {
+  id          String    @id @default(uuid())
+  bugId       String
+  bug         Bug      @relation(fields: [bugId], references: [id], onDelete: Cascade)
+  etCharterId String
+  etCharter   ETCharter @relation(fields: [etCharterId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@unique([bugId, etCharterId])
+  @@map("bug_et_charters")
+}
+
+model ETCharterTestCase {
+  id           String     @id @default(uuid())
+  etCharterId String
+  etCharter    ETCharter @relation(fields: [etCharterId], references: [id], onDelete: Cascade)
+  testCaseId   String
+  testCase     TestCase  @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+
+  @@unique([etCharterId, testCaseId])
+  @@map("et_charter_test_cases")
 }
 
 model TestCase {
@@ -273,23 +381,48 @@ model TestCase {
   title               String
   description         String?
   preconditions       String?
+  notes               String?
   steps               Json      @default("[]")  // [{order, action, expectedResult}]
   priorityId          String
   priority            EnumValue @relation("TestCasePriority", fields: [priorityId], references: [id])
   typeId              String
   type                EnumValue @relation("TestCaseType", fields: [typeId], references: [id])
   automationScriptRef String?
+  externalId         String?
   copiedFromId        String?
   createdById         String
   createdBy           User      @relation(fields: [createdById], references: [id])
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+  currentVersion      Int       @default(1)
 
-  executions TestExecution[]
-  tags       TestCaseTag[]
-  assignees  TestCaseAssignee[]
+  executions  TestExecution[]
+  tags        TestCaseTag[]
+  assignees   TestCaseAssignee[]
+  etCharters  ETCharterTestCase[]
+  versions    TestCaseVersion[]
 
   @@map("test_cases")
+}
+
+model TestCaseVersion {
+  id                   String   @id @default(uuid())
+  testCaseId           String
+  testCase             TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  version              Int
+  title                String
+  description          String?
+  preconditions        String?
+  notes                String?
+  steps                Json?
+  priorityId           String
+  typeId               String
+  automationScriptRef  String?
+  createdById          String
+  createdAt            DateTime @default(now())
+
+  @@unique([testCaseId, version])
+  @@map("test_case_versions")
 }
 
 model TestExecution {
@@ -312,8 +445,24 @@ model TestExecution {
 
   bugs        BugTestExecution[]
   tags        TestExecutionTag[]
+  stepResults ExecutionStepResult[]
 
   @@map("test_executions")
+}
+
+model ExecutionStepResult {
+  id           String   @id @default(uuid())
+  executionId  String
+  execution    TestExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  stepOrder    Int
+  status       String
+  actualResult String?
+  notes        String?
+  executedById String
+  executedBy   User     @relation(fields: [executedById], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@map("execution_step_results")
 }
 
 // ─── Bugs ──────────────────────────────────────────────────────────────────
@@ -344,6 +493,7 @@ model Bug {
   syncedAt    DateTime?
 
   executions BugTestExecution[]
+  etCharters BugETCharter[]
   tags       BugTag[]
 
   @@map("bugs")

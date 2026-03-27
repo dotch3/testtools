@@ -5,6 +5,7 @@ export interface TestExecution {
     id: string
     title: string
     priority: string
+    steps?: Array<{ order: number; action: string; expectedResult: string }>
   }
   testPlanId: string
   testPlan: {
@@ -27,12 +28,31 @@ export interface TestExecution {
   executedAt: string
   durationMs?: number
   notes?: string
+  environment?: string
+  platform?: string
   ciRunId?: string
   createdAt: string
   bugs?: BugSummary[]
+  stepResults?: ExecutionStepResult[]
   _count?: {
     bugs: number
   }
+}
+
+export interface ExecutionStepResult {
+  id: string
+  executionId: string
+  stepOrder: number
+  status: "pass" | "fail" | "blocked" | "skipped"
+  actualResult?: string
+  notes?: string
+  executedById: string
+  executedBy?: {
+    id: string
+    name?: string
+    email: string
+  }
+  createdAt: string
 }
 
 export interface BugSummary {
@@ -126,4 +146,20 @@ export interface UpdateExecutionInput {
   statusId?: string
   notes?: string
   durationMs?: number
+  environment?: string
+  platform?: string
+}
+
+export interface CreateExecutionInput {
+  testCaseId: string
+  testPlanId: string
+  environment?: string
+  platform?: string
+}
+
+export interface CreateStepResultInput {
+  stepOrder: number
+  status: "pass" | "fail" | "blocked" | "skipped"
+  actualResult?: string
+  notes?: string
 }

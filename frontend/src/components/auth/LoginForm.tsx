@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useTranslations } from "next-intl"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/useAuth"
@@ -17,7 +17,7 @@ interface FormErrors {
   general?: string
 }
 
-export function LoginForm() {
+function LoginFormContent() {
   const t = useTranslations("auth")
   const { login, user, isLoading: authLoading } = useAuth()
   const router = useRouter()
@@ -150,5 +150,13 @@ export function LoginForm() {
         </a>
       </p>
     </div>
+  )
+}
+
+export function LoginForm() {
+  return (
+    <Suspense fallback={<div className="p-4">Loading...</div>}>
+      <LoginFormContent />
+    </Suspense>
   )
 }

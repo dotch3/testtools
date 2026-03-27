@@ -1,4 +1,5 @@
 import Fastify from 'fastify'
+import fastifyMultipart from '@fastify/multipart'
 import swaggerPlugin from './interfaces/http/plugins/swagger.js'
 import corsPlugin from './interfaces/http/plugins/cors.js'
 import authPlugin from './interfaces/http/plugins/auth.js'
@@ -10,11 +11,14 @@ import { projectRoutes } from './interfaces/http/routes/projects.js'
 import { testPlanRoutes } from './interfaces/http/routes/testPlans.js'
 import { testSuiteRoutes } from './interfaces/http/routes/testSuites.js'
 import { testCaseRoutes } from './interfaces/http/routes/testCases.js'
+import { etCharterRoutes } from './interfaces/http/routes/etCharters.js'
+import { heuristicRoutes } from './interfaces/http/routes/heuristics.js'
 import { importRoutes } from './interfaces/http/routes/import.js'
 import { executionRoutes } from './interfaces/http/routes/executions.js'
 import { bugRoutes } from './interfaces/http/routes/bugs.js'
 import { webhookRoutes } from './interfaces/http/routes/webhooks.js'
 import { adminUsersRoutes } from './interfaces/http/routes/admin/users.js'
+import { evidenceRoutes } from './interfaces/http/routes/evidence.js'
 import { logger } from './logger.js'
 
 const fastifyLogger = Object.assign(Object.create(Object.getPrototypeOf(logger)), logger, {
@@ -32,8 +36,14 @@ export async function buildApp() {
   const app = Fastify({
     loggerInstance: fastifyLogger,
     disableRequestLogging: true,
+    bodyLimit: 60 * 1024 * 1024, // 60MB
   })
 
+  await app.register(fastifyMultipart, {
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB
+    },
+  })
   await app.register(corsPlugin)
   await app.register(swaggerPlugin)
   await app.register(auditLogPlugin)
@@ -63,6 +73,9 @@ export async function buildApp() {
   await app.register(bugRoutes, { prefix: '/api/v1' })
   await app.register(webhookRoutes, { prefix: '/api/v1' })
   await app.register(adminUsersRoutes, { prefix: '/api/v1' })
+  await app.register(etCharterRoutes, { prefix: '/api/v1' })
+  await app.register(heuristicRoutes, { prefix: '/api/v1' })
+  await app.register(evidenceRoutes, { prefix: '/api/v1' })
 
   return app
 }

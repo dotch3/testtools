@@ -3,7 +3,10 @@
 import { useTranslations } from "next-intl"
 import { api } from "@/lib/api"
 import { useState, useEffect, useCallback } from "react"
+import { toast } from "sonner"
 import type { Project } from "@/types/project"
+import { useProject } from "@/contexts/ProjectContext"
+import { useAuth } from "@/components/providers/AuthProvider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -32,6 +35,9 @@ import {
   CheckCircle,
 } from "lucide-react"
 import Link from "next/link"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { EmptyState } from "@/components/ui/empty-state"
+import { FolderKanban } from "lucide-react"
 
 interface ProjectFormData {
   name: string
@@ -289,23 +295,6 @@ function ProjectsSkeleton() {
   )
 }
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
-  return (
-    <div className="rounded-lg border bg-card p-8 text-center">
-      <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
-        <Plus className="h-6 w-6 text-muted-foreground" />
-      </div>
-      <h3 className="text-lg font-medium mb-1">No projects yet</h3>
-      <p className="text-sm text-muted-foreground mb-4">
-        Create your first project to get started.
-      </p>
-      <Button onClick={onCreate}>
-        <Plus className="mr-2 h-4 w-4" />
-        Create Project
-      </Button>
-    </div>
-  )
-}
 
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
@@ -322,11 +311,14 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 
 export function ProjectsTable() {
   const t = useTranslations("common")
+  const { refreshProjects } = useProject()
+  const { user } = useAuth()
+  const isAdmin = user?.role === "Admin"
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState<Project | null>(null)
 
   const loadProjects = useCallback(async () => {
     try {
@@ -348,25 +340,26 @@ export function ProjectsTable() {
   const handleCreateProject = async (data: ProjectFormData) => {
     await api.post("/projects", data)
     await loadProjects()
-    setIsCreateOpen(false)
+    await refreshProjects()
+    toast.success("Project created successfully")
   }
 
   const handleUpdateProject = async (id: string, data: ProjectFormData) => {
     await api.patch(`/projects/${id}`, data)
     await loadProjects()
+    await refreshProjects()
+    toast.success("Project updated successfully")
   }
 
   const handleDeleteProject = async (project: Project) => {
-    if (!confirm(`Are you sure you want to delete "${project.name}"? This action cannot be undone.`)) {
-      return
-    }
-    
     setDeletingId(project.id)
     try {
       await api.delete(`/projects/${project.id}`)
       setProjects(projects.filter((p) => p.id !== project.id))
+      await refreshProjects()
+      toast.success("Project deleted successfully")
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to delete project")
+      toast.error(err instanceof Error ? err.message : "Failed to delete project")
     } finally {
       setDeletingId(null)
     }
@@ -382,17 +375,19 @@ export function ProjectsTable() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <CreateProjectDialog
-          onSubmit={handleCreateProject}
-          trigger={
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Project
-            </Button>
-          }
-        />
-      </div>
+      {isAdmin && (
+        <div className="flex justify-end">
+          <CreateProjectDialog
+            onSubmit={handleCreateProject}
+            trigger={
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Project
+              </Button>
+            }
+          />
+        </div>
+      )}
 
       {error && (
         <div className="flex items-center justify-between p-3 rounded-md bg-destructive/10 text-destructive text-sm">
@@ -407,7 +402,24 @@ export function ProjectsTable() {
       )}
 
       {projects.length === 0 ? (
-        <EmptyState onCreate={() => setIsCreateOpen(true)} />
+        <EmptyState
+          icon={<FolderKanban className="h-8 w-8 text-muted-foreground" />}
+          title="No projects yet"
+          description={isAdmin ? "Create your first project to get started." : "No projects have been created yet."}
+          action={
+            isAdmin ? (
+              <CreateProjectDialog
+                onSubmit={handleCreateProject}
+                trigger={
+                  <Button>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Project
+                  </Button>
+                }
+              />
+            ) : undefined
+          }
+        />
       ) : (
         <div className="rounded-lg border bg-card overflow-hidden">
           <table className="w-full">
@@ -464,14 +476,16 @@ export function ProjectsTable() {
                             </DropdownMenuItem>
                           }
                         />
-                        <DropdownMenuItem
-                          onClick={() => handleDeleteProject(project)}
-                          disabled={deletingId === project.id}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          {deletingId === project.id ? "Deleting..." : "Delete"}
-                        </DropdownMenuItem>
+                        {isAdmin && (
+                          <DropdownMenuItem
+                            onClick={() => setDeleteConfirm(project)}
+                            disabled={deletingId === project.id}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            {deletingId === project.id ? "Deleting..." : "Delete"}
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </td>
@@ -481,6 +495,13 @@ export function ProjectsTable() {
           </table>
         </div>
       )}
+      <ConfirmDialog
+        open={deleteConfirm !== null}
+        onOpenChange={(open) => { if (!open) setDeleteConfirm(null) }}
+        title="Delete Project"
+        description={deleteConfirm ? `Are you sure you want to delete "${deleteConfirm.name}"? This action cannot be undone.` : ""}
+        onConfirm={() => deleteConfirm && handleDeleteProject(deleteConfirm)}
+      />
     </div>
   )
 }

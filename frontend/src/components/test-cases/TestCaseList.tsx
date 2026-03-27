@@ -1,9 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { api } from "@/lib/api"
 import { toast } from "sonner"
 import { useProject } from "@/contexts/ProjectContext"
+import { useEnums } from "@/hooks/useEnums"
 import {
   Plus,
   Pencil,
@@ -19,6 +20,9 @@ import {
   UserPlus,
   Eye,
   Paperclip,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -59,11 +63,13 @@ export interface TestCaseRow {
   notes?: string
   steps?: Array<{ order: number; action: string; expectedResult: string }>
   priority: {
+    id: string
     value: string
     label: string
     color?: string
   }
   type: {
+    id: string
     value: string
     label: string
   }
@@ -182,12 +188,15 @@ function TestCaseFormDialog({
     description: testCase?.description || "",
     preconditions: testCase?.preconditions || "",
     notes: testCase?.notes || "",
-    priorityId: testCase?.priority?.value || "seed-test_priority-medium",
-    typeId: testCase?.type?.value || "seed-test_type-manual",
+    priorityId: testCase?.priority?.id || "seed-test_priority-medium",
+    typeId: testCase?.type?.id || "seed-test_type-manual",
     steps: testCase?.steps?.map((s, i) => ({ ...s, order: i + 1 })) || [{ order: 1, action: "", expectedResult: "" }],
   })
   const [errors, setErrors] = useState<TestCaseFormErrors>({})
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
+  const { enums: caseEnums } = useEnums(["test_priority", "test_type"])
+  const priorities = caseEnums["test_priority"] ?? []
+  const types = caseEnums["test_type"] ?? []
 
   useEffect(() => {
     if (isOpen) {
@@ -196,8 +205,8 @@ function TestCaseFormDialog({
         description: testCase?.description || "",
         preconditions: testCase?.preconditions || "",
         notes: testCase?.notes || "",
-        priorityId: testCase?.priority?.value || "seed-test_priority-medium",
-        typeId: testCase?.type?.value || "seed-test_type-manual",
+        priorityId: testCase?.priority?.id || "seed-test_priority-medium",
+        typeId: testCase?.type?.id || "seed-test_type-manual",
         steps: testCase?.steps?.map((s, i) => ({ ...s, order: i + 1 })) || [{ order: 1, action: "", expectedResult: "" }],
       })
       setErrors({})
@@ -251,23 +260,9 @@ function TestCaseFormDialog({
     setFormData({ ...formData, steps: newSteps })
   }
 
-  const priorities = [
-    { value: "seed-test_priority-low", label: "Low", color: "#22c55e" },
-    { value: "seed-test_priority-medium", label: "Medium", color: "#f59e0b" },
-    { value: "seed-test_priority-high", label: "High", color: "#f97316" },
-    { value: "seed-test_priority-critical", label: "Critical", color: "#ef4444" },
-  ]
-
-  const types = [
-    { value: "seed-test_type-manual", label: "Manual" },
-    { value: "seed-test_type-automated", label: "Automated" },
-    { value: "seed-test_type-exploratory", label: "Exploratory" },
-    { value: "seed-test_type-regression", label: "Regression" },
-  ]
-
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>
@@ -422,7 +417,7 @@ function TestCaseFormDialog({
                 >
                   <option value="">Select priority</option>
                   {priorities.map((p) => (
-                    <option key={p.value} value={p.value}>
+                    <option key={p.id} value={p.id}>
                       {p.label}
                     </option>
                   ))}
@@ -450,7 +445,7 @@ function TestCaseFormDialog({
                 >
                   <option value="">Select type</option>
                   {types.map((t) => (
-                    <option key={t.value} value={t.value}>
+                    <option key={t.id} value={t.id}>
                       {t.label}
                     </option>
                   ))}
@@ -475,17 +470,19 @@ function TestCaseFormDialog({
                       {index + 1}
                     </span>
                     <div className="flex-1 grid grid-cols-2 gap-2">
-                      <Input
+                      <textarea
                         value={step.action}
                         onChange={(e) => updateStep(index, "action", e.target.value)}
                         placeholder="Action (e.g., Click submit)"
-                        className="text-sm"
+                        rows={3}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
                       />
-                      <Input
+                      <textarea
                         value={step.expectedResult}
                         onChange={(e) => updateStep(index, "expectedResult", e.target.value)}
                         placeholder="Expected result"
-                        className="text-sm"
+                        rows={3}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
                       />
                     </div>
                     {formData.steps.length > 1 && (
@@ -1069,6 +1066,15 @@ export function TestCaseList({
   const [bulkMoveOpen, setBulkMoveOpen] = useState(false)
   const [bulkAssignOpen, setBulkAssignOpen] = useState(false)
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [sortField, setSortField] = useState<"title" | "priority" | "type">("title")
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
+
+  const PRIORITY_ORDER: Record<string, number> = {
+    critical: 0,
+    high: 1,
+    medium: 2,
+    low: 3,
+  }
 
   const filteredCases = cases.filter(
     (c) =>
@@ -1076,15 +1082,45 @@ export function TestCaseList({
       c.description?.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
+  const sortedCases = useMemo(() => {
+    return [...filteredCases].sort((a, b) => {
+      let cmp = 0
+      if (sortField === "title") {
+        cmp = a.title.localeCompare(b.title)
+      } else if (sortField === "priority") {
+        const ao = PRIORITY_ORDER[a.priority.value] ?? 99
+        const bo = PRIORITY_ORDER[b.priority.value] ?? 99
+        cmp = ao - bo
+      } else if (sortField === "type") {
+        cmp = a.type.label.localeCompare(b.type.label)
+      }
+      return sortDir === "asc" ? cmp : -cmp
+    })
+  }, [filteredCases, sortField, sortDir])
+
+  const toggleSort = (field: "title" | "priority" | "type") => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+    } else {
+      setSortField(field)
+      setSortDir("asc")
+    }
+  }
+
+  const SortIcon = ({ field }: { field: "title" | "priority" | "type" }) => {
+    if (sortField !== field) return <ChevronsUpDown className="ml-1 h-3 w-3 opacity-50" />
+    return sortDir === "asc" ? <ChevronUp className="ml-1 h-3 w-3" /> : <ChevronDown className="ml-1 h-3 w-3" />
+  }
+
   const selectedCases = cases.filter(c => selectedIds.has(c.id))
   const selectedCount = selectedIds.size
-  const isAllSelected = filteredCases.length > 0 && filteredCases.every(c => selectedIds.has(c.id))
+  const isAllSelected = sortedCases.length > 0 && sortedCases.every(c => selectedIds.has(c.id))
 
   const handleSelectAll = () => {
     if (isAllSelected) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(filteredCases.map(c => c.id)))
+      setSelectedIds(new Set(sortedCases.map(c => c.id)))
     }
   }
 
@@ -1343,15 +1379,27 @@ export function TestCaseList({
                     </button>
                   </TableHead>
                   <TableHead className="w-[80px]">ID</TableHead>
-                  <TableHead className="w-[calc(40%-120px)]">Title</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Type</TableHead>
+                  <TableHead className="w-[calc(40%-120px)]">
+                    <button className="flex items-center hover:text-foreground transition-colors" onClick={() => toggleSort("title")}>
+                      Title <SortIcon field="title" />
+                    </button>
+                  </TableHead>
+                  <TableHead>
+                    <button className="flex items-center hover:text-foreground transition-colors" onClick={() => toggleSort("priority")}>
+                      Priority <SortIcon field="priority" />
+                    </button>
+                  </TableHead>
+                  <TableHead>
+                    <button className="flex items-center hover:text-foreground transition-colors" onClick={() => toggleSort("type")}>
+                      Type <SortIcon field="type" />
+                    </button>
+                  </TableHead>
                   <TableHead className="text-center">Executions</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredCases.map((testCase) => (
+                {sortedCases.map((testCase) => (
                   <TableRow
                     key={testCase.id}
                     className={`cursor-pointer ${selectedIds.has(testCase.id) ? "bg-muted/50" : ""}`}
@@ -1372,11 +1420,11 @@ export function TestCaseList({
                     <TableCell>
                       <span className="text-sm font-mono text-muted-foreground">TC-{testCase.id.substring(0, 8).toUpperCase()}</span>
                     </TableCell>
-                    <TableCell 
-                      className="font-medium cursor-pointer hover:text-primary transition-colors"
+                    <TableCell
+                      className="font-medium cursor-pointer hover:text-primary transition-colors max-w-[250px]"
                       onClick={() => onSelect ? onSelect(testCase) : setEditingCase(testCase)}
                     >
-                      {testCase.title}
+                      <span className="block truncate" title={testCase.title}>{testCase.title}</span>
                     </TableCell>
                     <TableCell>
                       <Badge

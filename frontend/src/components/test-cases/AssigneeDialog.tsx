@@ -112,7 +112,7 @@ export function AssigneeDialog({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Manage Assignees</DialogTitle>
           <DialogDescription>

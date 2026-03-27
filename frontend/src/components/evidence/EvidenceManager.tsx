@@ -3,7 +3,9 @@
 import { useState, useRef, useEffect } from "react"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { ImagePreview } from "./ImagePreview"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Upload,
   FileText,
@@ -21,7 +23,7 @@ interface Attachment {
 }
 
 interface EvidenceManagerProps {
-  entityType: "test_case" | "bug" | "test_execution"
+  entityType: "test_case" | "bug" | "test_execution" | "et_charter"
   entityId: string
   projectId: string
   suiteId?: string
@@ -66,6 +68,7 @@ export function EvidenceManager({
   const [previewOpen, setPreviewOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dropZoneRef = useRef<HTMLDivElement>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
   const isNewEntity = entityId === "pending-new" || !entityId
 
@@ -103,6 +106,8 @@ export function EvidenceManager({
           ? `/suites/${suiteId || 'placeholder'}/cases/${entityId}/evidence`
           : entityType === "bug"
           ? `/projects/${projectId}/bugs/${entityId}/evidence`
+          : entityType === "et_charter"
+          ? `/et-charters/${entityId}/evidence`
           : `/executions/${entityId}/evidence`
 
       const data = await api.get<Attachment[]>(endpoint)
@@ -160,7 +165,6 @@ export function EvidenceManager({
   }
 
   const handleDelete = async (attachmentId: string) => {
-    if (!confirm("Are you sure you want to delete this file?")) return
 
     try {
       const endpoint =
@@ -168,6 +172,8 @@ export function EvidenceManager({
           ? `/suites/${suiteId || 'placeholder'}/cases/${entityId}/evidence/${attachmentId}`
           : entityType === "bug"
           ? `/projects/${projectId}/bugs/${entityId}/evidence/${attachmentId}`
+          : entityType === "et_charter"
+          ? `/et-charters/${entityId}/evidence/${attachmentId}`
           : `/executions/${entityId}/evidence/${attachmentId}`
 
       await api.delete(endpoint)
@@ -234,7 +240,7 @@ export function EvidenceManager({
         <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center bg-muted/30">
           <Paperclip className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
           <p className="text-sm text-muted-foreground">
-            Save the test case first, then you can add attachments
+            Save first, then you can add attachments
           </p>
         </div>
       ) : (
@@ -263,8 +269,10 @@ export function EvidenceManager({
       )}
 
       {isLoading ? (
-        <div className="text-center py-4 text-muted-foreground">
-          Loading evidence...
+        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Skeleton key={i} className="aspect-square rounded-lg" />
+          ))}
         </div>
       ) : attachments.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground border rounded-lg">
@@ -274,7 +282,7 @@ export function EvidenceManager({
       ) : (
         <>
           {imageAttachments.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {imageAttachments.map((attachment, idx) => {
                 const originalIdx = attachments.findIndex(
                   (a) => a.id === attachment.id
@@ -282,7 +290,7 @@ export function EvidenceManager({
                 return (
                   <div
                     key={attachment.id}
-                    className="relative group aspect-square rounded-lg overflow-hidden border bg-card"
+                    className="relative group aspect-square rounded-lg overflow-hidden border bg-muted"
                   >
                     {imageUrls[attachment.id] ? (
                       <img
@@ -298,6 +306,7 @@ export function EvidenceManager({
                     )}
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                       <Button
+                        type="button"
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-white hover:bg-white/20"
@@ -306,6 +315,7 @@ export function EvidenceManager({
                         <ImageIcon className="h-4 w-4" />
                       </Button>
                       <Button
+                        type="button"
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-white hover:bg-white/20"
@@ -314,10 +324,11 @@ export function EvidenceManager({
                         <Download className="h-4 w-4" />
                       </Button>
                       <Button
+                        type="button"
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-red-400 hover:bg-red-500/20"
-                        onClick={() => handleDelete(attachment.id)}
+                        onClick={() => setDeleteConfirm(attachment.id)}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -357,6 +368,7 @@ export function EvidenceManager({
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <Button
+                        type="button"
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
@@ -365,10 +377,11 @@ export function EvidenceManager({
                         <Download className="h-4 w-4" />
                       </Button>
                       <Button
+                        type="button"
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-destructive"
-                        onClick={() => handleDelete(attachment.id)}
+                        onClick={() => setDeleteConfirm(attachment.id)}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -380,6 +393,14 @@ export function EvidenceManager({
           )}
         </>
       )}
+
+      <ConfirmDialog
+        open={deleteConfirm !== null}
+        onOpenChange={(open) => { if (!open) setDeleteConfirm(null) }}
+        title="Delete File"
+        description="Are you sure you want to delete this file? This action cannot be undone."
+        onConfirm={() => deleteConfirm && handleDelete(deleteConfirm)}
+      />
 
       {imageAttachments.length > 0 && (
         <ImagePreview

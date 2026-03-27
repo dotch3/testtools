@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import Link from "next/link"
 import {
   Plus,
@@ -11,11 +11,11 @@ import {
   Pencil,
   Trash2,
   TestTubes,
-  ChevronRight,
   AlertCircle,
   Copy,
   Move,
   Filter,
+  FolderKanban,
 } from "lucide-react"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
@@ -44,6 +44,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 interface TestPlan {
   id: string
@@ -58,6 +59,7 @@ interface TestSuite {
   projectName: string
   testPlanId?: string
   testPlanName?: string
+  createdAt?: string
   _count: {
     cases: number
   }
@@ -77,22 +79,27 @@ interface FormErrors {
 function SuitesSkeleton() {
   return (
     <div className="space-y-4">
-      <div className="flex justify-between">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-10 w-40" />
-      </div>
-      <div className="space-y-2">
-        {[...Array(8)].map((_, i) => (
-          <div key={i} className="flex items-center gap-4 p-4 rounded-lg border">
-            <Skeleton className="h-10 w-10 rounded" />
-            <div className="flex-1 space-y-2">
-              <Skeleton className="h-4 w-48" />
-              <Skeleton className="h-3 w-32" />
-            </div>
-            <Skeleton className="h-4 w-20" />
-            <Skeleton className="h-8 w-8" />
-            <Skeleton className="h-8 w-24" />
-          </div>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <Card key={i}>
+            <CardContent className="p-6 space-y-4">
+              <div className="flex items-start gap-3">
+                <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-5 w-40" />
+                  <Skeleton className="h-4 w-full" />
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+              <div className="flex justify-between pt-4 border-t">
+                <Skeleton className="h-8 w-24" />
+                <Skeleton className="h-8 w-8" />
+              </div>
+            </CardContent>
+          </Card>
         ))}
       </div>
     </div>
@@ -156,7 +163,7 @@ function CreateSuiteDialog({
       <DialogTrigger asChild onClick={() => setIsOpen(true)}>
         {trigger}
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Create Test Suite</DialogTitle>
@@ -306,7 +313,7 @@ function EditSuiteDialog({
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <div onClick={() => setIsOpen(true)}>{children}</div>
-      <DialogContent>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Edit Test Suite</DialogTitle>
@@ -403,7 +410,10 @@ export default function TestSuitesPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [editingSuite, setEditingSuite] = useState<TestSuite | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<TestSuite | null>(null)
   const [copyMoveSuite, setCopyMoveSuite] = useState<{ suite: TestSuite; mode: "copy" | "move" } | null>(null)
+  const [sortField, setSortField] = useState<"name" | "createdAt">("name")
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
 
   const loadSuites = useCallback(async () => {
     if (!selectedProject) {
@@ -503,7 +513,6 @@ export default function TestSuitesPage() {
   }
 
   const handleDelete = async (suite: TestSuite) => {
-    if (!confirm(`Delete "${suite.name}"? This cannot be undone.`)) return
     setDeletingId(suite.id)
     try {
       await api.delete(`/suites/${suite.id}`)
@@ -511,7 +520,7 @@ export default function TestSuitesPage() {
       toast.success("Test suite deleted successfully")
     } catch (err) {
       console.error("Failed to delete suite:", err)
-      toast.error("Failed to delete suite. Please try again.")
+      toast.error(err instanceof Error ? err.message : "Failed to delete suite. Please try again.")
     } finally {
       setDeletingId(null)
     }
@@ -560,6 +569,18 @@ export default function TestSuitesPage() {
       (s.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (s.description || "").toLowerCase().includes(searchQuery.toLowerCase())
   ).filter((s) => !selectedPlanId || s.testPlanId === selectedPlanId)
+
+  const sortedSuites = useMemo(() => {
+    return [...filteredSuites].sort((a, b) => {
+      let cmp = 0
+      if (sortField === "name") {
+        cmp = (a.name || "").localeCompare(b.name || "")
+      } else if (sortField === "createdAt") {
+        cmp = new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
+      }
+      return sortDir === "asc" ? cmp : -cmp
+    })
+  }, [filteredSuites, sortField, sortDir])
 
   if (!selectedProject) {
     return (
@@ -641,6 +662,20 @@ export default function TestSuitesPage() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          <select
+            value={`${sortField}-${sortDir}`}
+            onChange={(e) => {
+              const [f, d] = e.target.value.split("-") as ["name" | "createdAt", "asc" | "desc"]
+              setSortField(f)
+              setSortDir(d)
+            }}
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="name-asc">Name A→Z</option>
+            <option value="name-desc">Name Z→A</option>
+            <option value="createdAt-desc">Newest first</option>
+            <option value="createdAt-asc">Oldest first</option>
+          </select>
         </div>
         <CreateSuiteDialog
           onSubmit={handleCreate}
@@ -655,7 +690,7 @@ export default function TestSuitesPage() {
         />
       </div>
 
-      {filteredSuites.length === 0 && !searchQuery ? (
+      {sortedSuites.length === 0 && !searchQuery ? (
         <Card>
           <CardContent className="p-0">
             <EmptyState
@@ -678,7 +713,7 @@ export default function TestSuitesPage() {
             />
           </CardContent>
         </Card>
-      ) : filteredSuites.length === 0 ? (
+      ) : sortedSuites.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
             <p className="text-muted-foreground">No suites match your search.</p>
@@ -694,74 +729,86 @@ export default function TestSuitesPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2">
-          {filteredSuites.map((suite) => (
-            <div
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {sortedSuites.map((suite) => (
+            <Card
               key={suite.id}
-              className="flex items-center gap-4 p-4 rounded-lg border bg-card transition-all hover:shadow-sm hover:border-primary/50"
+              className="transition-all hover:shadow-md hover:border-primary/50 group"
             >
-              <div className="rounded-lg bg-primary/10 p-2.5">
-                <Folder className="h-5 w-5 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-medium truncate">{suite.name}</h3>
+              <CardContent className="p-6">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="rounded-lg bg-primary/10 p-2 mt-0.5 shrink-0">
+                    <Folder className="h-4 w-4 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <Link
+                      href={`/test-suites/${suite.id}`}
+                      className="text-lg font-semibold hover:text-primary transition-colors line-clamp-2"
+                    >
+                      {suite.name}
+                    </Link>
+                    {suite.description && (
+                      <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                        {suite.description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mb-4">
                   {suite.testPlanName && (
-                    <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                    <span className="flex items-center gap-1">
+                      <FolderKanban className="h-3 w-3" />
                       {suite.testPlanName}
                     </span>
                   )}
+                  <span className="flex items-center gap-1">
+                    <TestTubes className="h-3 w-3" />
+                    {suite._count.cases} cases
+                  </span>
                 </div>
-                {suite.description && (
-                  <p className="text-sm text-muted-foreground truncate">
-                    {suite.description}
-                  </p>
-                )}
-              </div>
-              <div className="flex items-center gap-4">
-                <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                  <TestTubes className="h-4 w-4" />
-                  {suite._count.cases} cases
-                </span>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                      <MoreHorizontal className="h-4 w-4" />
+
+                <div className="flex justify-between items-center pt-4 border-t">
+                  <Link href={`/test-suites/${suite.id}`}>
+                    <Button variant="ghost" size="sm">
+                      View Details
                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <EditSuiteDialog suite={suite} testPlans={testPlans} onSubmit={handleUpdate}>
-                      <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setEditingSuite(suite) }}>
-                        <Pencil className="mr-2 h-4 w-4" />
-                        Edit
+                  </Link>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <EditSuiteDialog suite={suite} testPlans={testPlans} onSubmit={handleUpdate}>
+                        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setEditingSuite(suite) }}>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Edit
+                        </DropdownMenuItem>
+                      </EditSuiteDialog>
+                      <DropdownMenuItem onClick={() => setCopyMoveSuite({ suite, mode: "copy" })}>
+                        <Copy className="mr-2 h-4 w-4" />
+                        Copy to Plan
                       </DropdownMenuItem>
-                    </EditSuiteDialog>
-                    <DropdownMenuItem onClick={() => setCopyMoveSuite({ suite, mode: "copy" })}>
-                      <Copy className="mr-2 h-4 w-4" />
-                      Copy to Plan
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setCopyMoveSuite({ suite, mode: "move" })}>
-                      <Move className="mr-2 h-4 w-4" />
-                      Move to Plan
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() => handleDelete(suite)}
-                      disabled={deletingId === suite.id}
-                      className="text-destructive focus:text-destructive"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      {deletingId === suite.id ? "Deleting..." : "Delete"}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <Link href={`/test-suites/${suite.id}`}>
-                  <Button variant="ghost" size="sm">
-                    View <ChevronRight className="ml-1 h-4 w-4" />
-                  </Button>
-                </Link>
-              </div>
-            </div>
+                      <DropdownMenuItem onClick={() => setCopyMoveSuite({ suite, mode: "move" })}>
+                        <Move className="mr-2 h-4 w-4" />
+                        Move to Plan
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => setDeleteConfirm(suite)}
+                        disabled={deletingId === suite.id}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        {deletingId === suite.id ? "Deleting..." : "Delete"}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}
@@ -773,6 +820,14 @@ export default function TestSuitesPage() {
         testPlans={testPlans}
         onClose={() => setCopyMoveSuite(null)}
         onComplete={handleCopyMoveComplete}
+      />
+
+      <ConfirmDialog
+        open={deleteConfirm !== null}
+        onOpenChange={(open) => { if (!open) setDeleteConfirm(null) }}
+        title="Delete Test Suite"
+        description={deleteConfirm ? `Delete "${deleteConfirm.name}"? This cannot be undone.` : ""}
+        onConfirm={() => deleteConfirm && handleDelete(deleteConfirm)}
       />
     </div>
   )

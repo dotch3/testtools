@@ -33,6 +33,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 export function UsersTable() {
   const t = useTranslations("common")
@@ -41,6 +42,7 @@ export function UsersTable() {
   const [error, setError] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState<User | null>(null)
   const [createMode, setCreateMode] = useState<"create" | "invite">("create")
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [createForm, setCreateForm] = useState<CreateUserInput>({
@@ -120,7 +122,6 @@ export function UsersTable() {
   }
 
   const handleDeleteUser = async (user: User) => {
-    if (!confirm(`Are you sure you want to deactivate ${user.email}?`)) return
     try {
       await api.delete(`/admin/users/${user.id}`)
       setUsers(users.filter((u) => u.id !== user.id))
@@ -266,7 +267,7 @@ export function UsersTable() {
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuItem
-                          onClick={() => handleDeleteUser(user)}
+                          onClick={() => setDeleteConfirm(user)}
                           className="text-destructive focus:text-destructive"
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
@@ -441,6 +442,15 @@ export function UsersTable() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteConfirm !== null}
+        onOpenChange={(open) => { if (!open) setDeleteConfirm(null) }}
+        title="Deactivate User"
+        description={deleteConfirm ? `Are you sure you want to deactivate ${deleteConfirm.email}?` : ""}
+        confirmLabel="Deactivate"
+        onConfirm={() => deleteConfirm && handleDeleteUser(deleteConfirm)}
+      />
     </div>
   )
 }

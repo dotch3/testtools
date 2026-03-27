@@ -30,6 +30,7 @@ import { MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import { ETCharterList } from "@/components/et-charters/ETCharterList"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { AssigneeDialog } from "@/components/test-cases/AssigneeDialog"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { User } from "lucide-react"
 
 interface TestCase {
@@ -69,6 +70,7 @@ export default function TestSuiteDetailPage() {
   const [cases, setCases] = useState<TestCase[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<"cases" | "charters">("cases")
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
   useEffect(() => {
     if (!selectedProject || !suiteId) return
@@ -110,8 +112,6 @@ export default function TestSuiteDetailPage() {
   }
 
   const handleDeleteCase = async (caseId: string) => {
-    if (!confirm("Are you sure you want to delete this test case?")) return
-    
     try {
       await api.delete(`/cases/${caseId}`)
       setCases(cases.filter(c => c.id !== caseId))
@@ -325,7 +325,7 @@ export default function TestSuiteDetailPage() {
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              onClick={() => handleDeleteCase(caseItem.id)}
+                              onClick={() => setDeleteConfirm(caseItem.id)}
                               className="text-destructive focus:text-destructive"
                             >
                               <Trash2 className="mr-2 h-4 w-4" />
@@ -351,6 +351,14 @@ export default function TestSuiteDetailPage() {
           />
         </TabsContent>
       </Tabs>
+
+      <ConfirmDialog
+        open={deleteConfirm !== null}
+        onOpenChange={(open) => { if (!open) setDeleteConfirm(null) }}
+        title="Delete Test Case"
+        description="Are you sure you want to delete this test case? This action cannot be undone."
+        onConfirm={() => deleteConfirm && handleDeleteCase(deleteConfirm)}
+      />
     </div>
   )
 }

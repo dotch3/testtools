@@ -23,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { History, RotateCcw, Eye, Loader2 } from "lucide-react"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 interface Version {
   id: string
@@ -133,6 +134,7 @@ export function TestCaseVersionHistory({
   const [isLoading, setIsLoading] = useState(false)
   const [isRestoring, setIsRestoring] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [restoreConfirm, setRestoreConfirm] = useState<Version | null>(null)
 
   const loadVersions = async () => {
     setIsLoading(true)
@@ -155,10 +157,6 @@ export function TestCaseVersionHistory({
   }, [isOpen, suiteId, caseId])
 
   const handleRestore = async (version: Version) => {
-    if (!confirm(`Restore test case to version ${version.version}? This will create a new version with the content from v${version.version}.`)) {
-      return
-    }
-
     setIsRestoring(version.version)
     try {
       await api.post(`/suites/${suiteId}/cases/${caseId}/versions/${version.version}/restore`)
@@ -184,11 +182,12 @@ export function TestCaseVersionHistory({
   )
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <>
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild onClick={() => setIsOpen(true)}>
         {trigger || defaultTrigger}
       </DialogTrigger>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Version History</DialogTitle>
           <DialogDescription>
@@ -271,7 +270,7 @@ export function TestCaseVersionHistory({
                                 variant="ghost"
                                 size="sm"
                                 className="h-8 w-8 p-0"
-                                onClick={() => handleRestore(version)}
+                                onClick={() => setRestoreConfirm(version)}
                                 disabled={isRestoring === version.version || version.version === currentVersion}
                                 title={version.version === currentVersion ? "Current version" : "Restore this version"}
                               >
@@ -301,5 +300,16 @@ export function TestCaseVersionHistory({
         </div>
       </DialogContent>
     </Dialog>
+
+    <ConfirmDialog
+      open={restoreConfirm !== null}
+      onOpenChange={(open) => { if (!open) setRestoreConfirm(null) }}
+      title="Restore Version"
+      description={restoreConfirm ? `Restore test case to version ${restoreConfirm.version}? This will create a new version with the content from v${restoreConfirm.version}.` : ""}
+      confirmLabel="Restore"
+      variant="default"
+      onConfirm={() => restoreConfirm && handleRestore(restoreConfirm)}
+    />
+    </>
   )
 }

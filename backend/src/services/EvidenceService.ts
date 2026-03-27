@@ -33,7 +33,7 @@ export class EvidenceService {
       content: Buffer
       mimetype: string
     },
-    entityType: "bug" | "test_case" | "test_execution",
+    entityType: "bug" | "test_case" | "test_execution" | "et_charter",
     entityId: string,
     projectId: string | undefined,
     userId: string
@@ -50,15 +50,18 @@ export class EvidenceService {
       } else if (entityType === "test_execution") {
         const exec = await prisma.testExecution.findUnique({ where: { id: entityId }, include: { testCase: { include: { suite: { include: { testPlan: true } } } } } })
         finalProjectId = exec?.testCase?.suite?.testPlan?.projectId
+      } else if (entityType === "et_charter") {
+        const charter = await prisma.eTCharter.findUnique({ where: { id: entityId }, include: { suite: { include: { testPlan: true } } } })
+        finalProjectId = charter?.suite?.testPlan?.projectId
       }
     }
 
     if (!finalProjectId) {
-      logger.error({ entityType, entityId }, "[Evidence] Could not determine project for entity")
+      logger.error("[Evidence] Could not determine project for entity", { entityType, entityId })
       throw new Error("Could not determine project for this entity")
     }
 
-    logger.debug({ fileName: file.filename, entityType, entityId, projectId: finalProjectId }, "[Evidence] Uploading file")
+    logger.debug("[Evidence] Uploading file", { fileName: file.filename, entityType, entityId, projectId: finalProjectId })
 
     const ext = path.extname(file.filename)
     const storedFileName = `${randomUUID()}${ext}`
@@ -67,22 +70,23 @@ export class EvidenceService {
       test_case: "test-cases",
       bug: "bugs",
       test_execution: "executions",
+      et_charter: "et-charters",
     }
     const folder = folderMap[entityType] || "other"
     
     const entityFolder = path.join(this.uploadDir, folder, entityId)
-    logger.debug({ entityFolder }, "[Evidence] Creating folder")
+    logger.debug("[Evidence] Creating folder", { entityFolder })
     if (!fs.existsSync(entityFolder)) {
       fs.mkdirSync(entityFolder, { recursive: true })
     }
     
     const filePath = path.join(entityFolder, storedFileName)
-    logger.debug({ filePath, fileSize: file.content.length }, "[Evidence] Writing file")
+    logger.debug("[Evidence] Writing file", { filePath, fileSize: file.content.length })
     fs.writeFileSync(filePath, file.content)
 
     const fileSizeKb = Math.round(file.content.length / 1024)
 
-    logger.debug({ projectId: finalProjectId, entityType, entityId, fileName: file.filename, storagePath: `${folder}/${entityId}/${storedFileName}` }, "[Evidence] Creating DB record")
+    logger.debug("[Evidence] Creating DB record", { projectId: finalProjectId, entityType, entityId, fileName: file.filename, storagePath: `${folder}/${entityId}/${storedFileName}` })
 
     const attachment = await prisma.attachment.create({
       data: {
@@ -97,7 +101,7 @@ export class EvidenceService {
       },
     })
 
-    logger.info({ attachmentId: attachment.id, fileName: file.filename, storagePath: attachment.storagePath }, "[Evidence] File uploaded successfully")
+    logger.info("[Evidence] File uploaded successfully", { attachmentId: attachment.id, fileName: file.filename, storagePath: attachment.storagePath })
 
     return {
       id: attachment.id,
@@ -111,7 +115,7 @@ export class EvidenceService {
   }
 
   async getByEntity(
-    entityType: "bug" | "test_case" | "test_execution",
+    entityType: "bug" | "test_case" | "test_execution" | "et_charter",
     entityId: string
   ): Promise<AttachmentInfo[]> {
     const attachments = await prisma.attachment.findMany({

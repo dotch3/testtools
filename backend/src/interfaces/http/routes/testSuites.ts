@@ -57,7 +57,7 @@ export async function testSuiteRoutes(app: FastifyInstance) {
             orderIndex: { type: "number" },
           },
         },
-        response: { 201: { type: "object" } },
+        response: { 201: { type: "object", additionalProperties: true } },
       },
     },
     async (request, reply) => {

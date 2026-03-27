@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify"
 import { etCharterService } from "../../../services/ETCharterService.js"
+import { evidenceService } from "../../../services/EvidenceService.js"
 
 export async function etCharterRoutes(app: FastifyInstance) {
   // List ET Charters by suite
@@ -97,7 +98,7 @@ export async function etCharterRoutes(app: FastifyInstance) {
             },
           },
         },
-        response: { 201: { type: "object" } },
+        response: { 201: { type: "object", additionalProperties: true } },
       },
     },
     async (request, reply) => {
@@ -325,7 +326,7 @@ export async function etCharterRoutes(app: FastifyInstance) {
             targetSuiteId: { type: "string" },
           },
         },
-        response: { 201: { type: "object" } },
+        response: { 201: { type: "object", additionalProperties: true } },
       },
     },
     async (request, reply) => {
@@ -388,7 +389,7 @@ export async function etCharterRoutes(app: FastifyInstance) {
             bugId: { type: "string" },
           },
         },
-        response: { 201: { type: "object" } },
+        response: { 201: { type: "object", additionalProperties: true } },
       },
     },
     async (request, reply) => {
@@ -443,7 +444,7 @@ export async function etCharterRoutes(app: FastifyInstance) {
             testCaseId: { type: "string" },
           },
         },
-        response: { 201: { type: "object" } },
+        response: { 201: { type: "object", additionalProperties: true } },
       },
     },
     async (request, reply) => {
@@ -452,6 +453,50 @@ export async function etCharterRoutes(app: FastifyInstance) {
 
       const link = await etCharterService.linkTestCase(id, testCaseId)
       return reply.status(201).send(link)
+    }
+  )
+
+  // Get evidence for ET Charter
+  app.get<{ Params: { id: string } }>(
+    "/et-charters/:id/evidence",
+    {
+      schema: {
+        tags: ["ET Charters"],
+        summary: "Get all evidence for an ET Charter",
+        params: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+          },
+        },
+      },
+    },
+    async (request) => {
+      const { id } = request.params as { id: string }
+      return evidenceService.getByEntity("et_charter", id)
+    }
+  )
+
+  // Delete evidence from ET Charter
+  app.delete<{ Params: { id: string; attachmentId: string } }>(
+    "/et-charters/:id/evidence/:attachmentId",
+    {
+      schema: {
+        tags: ["ET Charters"],
+        summary: "Delete evidence from an ET Charter",
+        params: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            attachmentId: { type: "string" },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { attachmentId } = request.params as { id: string; attachmentId: string }
+      await evidenceService.delete(attachmentId)
+      return reply.status(204).send()
     }
   )
 

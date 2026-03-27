@@ -1,7 +1,7 @@
 "use client"
 
 import { useTranslations } from "next-intl"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { Bug, BugStats, CreateBugInput, UpdateBugInput } from "@/types/bug"
@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { EmptyState } from "@/components/ui/empty-state"
 import { EvidenceManager } from "@/components/evidence/EvidenceManager"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Plus,
   Search,
@@ -20,6 +21,9 @@ import {
   Trash2,
   Bug as BugIcon,
   Link,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
 } from "lucide-react"
 import {
   Dialog,
@@ -30,37 +34,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-
-const BUG_STATUSES = [
-  { id: "seed-bug_status-open", label: "Open", value: "open" },
-  { id: "seed-bug_status-in_progress", label: "In Progress", value: "in_progress" },
-  { id: "seed-bug_status-resolved", label: "Resolved", value: "resolved" },
-  { id: "seed-bug_status-closed", label: "Closed", value: "closed" },
-  { id: "seed-bug_status-reopened", label: "Reopened", value: "reopened" },
-]
-
-const BUG_PRIORITIES = [
-  { id: "seed-bug_priority-critical", label: "Critical" },
-  { id: "seed-bug_priority-high", label: "High" },
-  { id: "seed-bug_priority-medium", label: "Medium" },
-  { id: "seed-bug_priority-low", label: "Low" },
-]
-
-const BUG_SEVERITIES = [
-  { id: "seed-bug_severity-blocker", label: "Blocker" },
-  { id: "seed-bug_severity-critical", label: "Critical" },
-  { id: "seed-bug_severity-major", label: "Major" },
-  { id: "seed-bug_severity-minor", label: "Minor" },
-  { id: "seed-bug_severity-trivial", label: "Trivial" },
-]
-
-const BUG_SOURCES = [
-  { id: "seed-bug_source-internal", label: "Internal" },
-  { id: "seed-bug_source-jira", label: "Jira" },
-  { id: "seed-bug_source-github", label: "GitHub" },
-  { id: "seed-bug_source-gitlab", label: "GitLab" },
-  { id: "seed-bug_source-linear", label: "Linear" },
-]
+import { useEnums } from "@/hooks/useEnums"
 
 const priorityColors: Record<string, string> = {
   low: "bg-blue-500/10 text-blue-600 border-blue-500/20",
@@ -126,6 +100,11 @@ function BugTableSkeleton() {
 
 export function BugTable({ projectId, executionId, onRefresh, onCreateBug }: BugTableProps) {
   const t = useTranslations("common")
+  const { enums: bugEnums } = useEnums(["bug_status", "bug_priority", "bug_severity", "bug_source"])
+  const BUG_STATUSES = bugEnums["bug_status"] ?? []
+  const BUG_PRIORITIES = bugEnums["bug_priority"] ?? []
+  const BUG_SEVERITIES = bugEnums["bug_severity"] ?? []
+  const BUG_SOURCES = bugEnums["bug_source"] ?? []
   const [bugs, setBugs] = useState<Bug[]>([])
   const [stats, setStats] = useState<BugStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -134,6 +113,7 @@ export function BugTable({ projectId, executionId, onRefresh, onCreateBug }: Bug
   const [selectedBug, setSelectedBug] = useState<Bug | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [newBugId, setNewBugId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<UpdateBugInput>({})
   const [createForm, setCreateForm] = useState<CreateBugInput>({
     title: "",
@@ -147,6 +127,7 @@ export function BugTable({ projectId, executionId, onRefresh, onCreateBug }: Bug
   const [availableExecutions, setAvailableExecutions] = useState<any[]>([])
   const [linkedExecutionIds, setLinkedExecutionIds] = useState<string[]>([])
   const [isLoadingExecutions, setIsLoadingExecutions] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState<Bug | null>(null)
 
   const loadBugs = useCallback(async () => {
     try {
@@ -181,7 +162,7 @@ export function BugTable({ projectId, executionId, onRefresh, onCreateBug }: Bug
         await api.post(`/bugs/${bug.id}/executions/${executionId}`)
       }
       setBugs([bug, ...bugs])
-      setIsCreateDialogOpen(false)
+      setNewBugId(bug.id)
       setCreateForm({
         title: "",
         description: "",
@@ -250,7 +231,6 @@ export function BugTable({ projectId, executionId, onRefresh, onCreateBug }: Bug
   }
 
   const handleDeleteBug = async (bug: Bug) => {
-    if (!confirm("Are you sure you want to delete this bug?")) return
     try {
       await api.delete(`/bugs/${bug.id}`)
       setBugs(bugs.filter((b) => b.id !== bug.id))
@@ -265,12 +245,48 @@ export function BugTable({ projectId, executionId, onRefresh, onCreateBug }: Bug
     }
   }
 
+  const [sortField, setSortField] = useState<"title" | "status" | "priority" | "severity">("title")
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
+
+  const PRIORITY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 }
+  const SEVERITY_ORDER: Record<string, number> = { blocker: 0, critical: 1, major: 2, minor: 3, trivial: 4 }
+
   const filteredBugs = bugs.filter(
     (bug) =>
       bug.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       bug.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       bug.externalId?.toLowerCase().includes(searchQuery.toLowerCase())
   )
+
+  const sortedBugs = useMemo(() => {
+    return [...filteredBugs].sort((a, b) => {
+      let cmp = 0
+      if (sortField === "title") {
+        cmp = a.title.localeCompare(b.title)
+      } else if (sortField === "status") {
+        cmp = (a.status?.label ?? "").localeCompare(b.status?.label ?? "")
+      } else if (sortField === "priority") {
+        cmp = (PRIORITY_ORDER[a.priority?.value ?? ""] ?? 99) - (PRIORITY_ORDER[b.priority?.value ?? ""] ?? 99)
+      } else if (sortField === "severity") {
+        cmp = (SEVERITY_ORDER[a.severity?.value ?? ""] ?? 99) - (SEVERITY_ORDER[b.severity?.value ?? ""] ?? 99)
+      }
+      return sortDir === "asc" ? cmp : -cmp
+    })
+  }, [filteredBugs, sortField, sortDir])
+
+  const toggleSort = (field: "title" | "status" | "priority" | "severity") => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+    } else {
+      setSortField(field)
+      setSortDir("asc")
+    }
+  }
+
+  const SortIcon = ({ field }: { field: "title" | "status" | "priority" | "severity" }) => {
+    if (sortField !== field) return <ChevronsUpDown className="ml-1 h-3 w-3 opacity-50" />
+    return sortDir === "asc" ? <ChevronUp className="ml-1 h-3 w-3" /> : <ChevronDown className="ml-1 h-3 w-3" />
+  }
 
   if (isLoading) {
     return <BugTableSkeleton />
@@ -338,24 +354,40 @@ export function BugTable({ projectId, executionId, onRefresh, onCreateBug }: Bug
           <table className="w-full">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="px-4 py-3 text-left text-sm font-medium">Title</th>
-                <th className="px-4 py-3 text-left text-sm font-medium">Status</th>
-                <th className="px-4 py-3 text-left text-sm font-medium">Priority</th>
-                <th className="px-4 py-3 text-left text-sm font-medium">Severity</th>
+                <th className="px-4 py-3 text-left text-sm font-medium">
+                  <button className="flex items-center hover:text-foreground transition-colors" onClick={() => toggleSort("title")}>
+                    Title <SortIcon field="title" />
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-left text-sm font-medium">
+                  <button className="flex items-center hover:text-foreground transition-colors" onClick={() => toggleSort("status")}>
+                    Status <SortIcon field="status" />
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-left text-sm font-medium">
+                  <button className="flex items-center hover:text-foreground transition-colors" onClick={() => toggleSort("priority")}>
+                    Priority <SortIcon field="priority" />
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-left text-sm font-medium">
+                  <button className="flex items-center hover:text-foreground transition-colors" onClick={() => toggleSort("severity")}>
+                    Severity <SortIcon field="severity" />
+                  </button>
+                </th>
                 <th className="px-4 py-3 text-center text-sm font-medium">Executions</th>
                 <th className="px-4 py-3 text-left text-sm font-medium">Reported By</th>
                 <th className="px-4 py-3 text-right text-sm font-medium">{t("actions")}</th>
               </tr>
             </thead>
             <tbody>
-              {filteredBugs.map((bug) => (
+              {sortedBugs.map((bug) => (
                 <tr key={bug.id} className="border-b">
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 max-w-[250px]">
                     <button
                       onClick={() => setSelectedBug(bug)}
-                      className="text-left hover:underline"
+                      className="text-left hover:underline w-full"
                     >
-                      <div className="font-medium">{bug.title}</div>
+                      <div className="font-medium truncate" title={bug.title}>{bug.title}</div>
                       {bug.externalId && (
                         <div className="text-xs text-muted-foreground flex items-center gap-1">
                           <span>{bug.externalId}</span>
@@ -418,7 +450,7 @@ export function BugTable({ projectId, executionId, onRefresh, onCreateBug }: Bug
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleDeleteBug(bug)}
+                        onClick={() => setDeleteConfirm(bug)}
                       >
                         <Trash2 className="h-3 w-3 text-destructive" />
                       </Button>
@@ -432,7 +464,7 @@ export function BugTable({ projectId, executionId, onRefresh, onCreateBug }: Bug
       )}
 
       <Dialog open={!!selectedBug} onOpenChange={() => setSelectedBug(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Bug Details</DialogTitle>
             <DialogDescription>{selectedBug?.title}</DialogDescription>
@@ -532,12 +564,14 @@ export function BugTable({ projectId, executionId, onRefresh, onCreateBug }: Bug
       </Dialog>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Bug</DialogTitle>
-            {selectedBug?.externalId && (
-              <p className="text-sm text-muted-foreground font-mono">{selectedBug.externalId}</p>
-            )}
+            <DialogDescription>
+              {selectedBug?.externalId
+                ? `Update bug ${selectedBug.externalId}`
+                : "Update the bug details, status, and evidence."}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -646,7 +680,7 @@ export function BugTable({ projectId, executionId, onRefresh, onCreateBug }: Bug
       </Dialog>
 
       <Dialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Link Executions</DialogTitle>
             <DialogDescription>Select executions to link to this bug.</DialogDescription>
@@ -685,99 +719,136 @@ export function BugTable({ projectId, executionId, onRefresh, onCreateBug }: Bug
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create Bug</DialogTitle>
-            <DialogDescription>Report a new bug.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="create-title">Title *</Label>
-              <Input
-                id="create-title"
-                value={createForm.title}
-                onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })}
-                placeholder="Brief description of the bug"
-              />
-            </div>
-            <div>
-              <Label htmlFor="create-description">Description</Label>
-              <textarea
-                id="create-description"
-                className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={createForm.description ?? ""}
-                onChange={(e) =>
-                  setCreateForm({ ...createForm, description: e.target.value })
-                }
-                placeholder="Detailed steps to reproduce..."
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="create-status">Status</Label>
-                <select
-                  id="create-status"
-                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-                  value={createForm.statusId}
-                  onChange={(e) => setCreateForm({ ...createForm, statusId: e.target.value })}
-                >
-                  {BUG_STATUSES.map((s) => (
-                    <option key={s.id} value={s.id}>{s.label}</option>
-                  ))}
-                </select>
+      <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+        if (!open) { setNewBugId(null) }
+        setIsCreateDialogOpen(open)
+      }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          {!newBugId ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Create Bug</DialogTitle>
+                <DialogDescription>Report a new bug.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div>
+                  <Label htmlFor="create-title">Title *</Label>
+                  <Input
+                    id="create-title"
+                    value={createForm.title}
+                    onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })}
+                    placeholder="Brief description of the bug"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="create-description">Description</Label>
+                  <textarea
+                    id="create-description"
+                    className="mt-1 min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={createForm.description ?? ""}
+                    onChange={(e) =>
+                      setCreateForm({ ...createForm, description: e.target.value })
+                    }
+                    placeholder="Detailed steps to reproduce..."
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="create-status">Status</Label>
+                    <select
+                      id="create-status"
+                      className="mt-1 w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                      value={createForm.statusId}
+                      onChange={(e) => setCreateForm({ ...createForm, statusId: e.target.value })}
+                    >
+                      {BUG_STATUSES.map((s) => (
+                        <option key={s.id} value={s.id}>{s.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label htmlFor="create-priority">Priority</Label>
+                    <select
+                      id="create-priority"
+                      className="mt-1 w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                      value={createForm.priorityId}
+                      onChange={(e) => setCreateForm({ ...createForm, priorityId: e.target.value })}
+                    >
+                      {BUG_PRIORITIES.map((p) => (
+                        <option key={p.id} value={p.id}>{p.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label htmlFor="create-severity">Severity</Label>
+                    <select
+                      id="create-severity"
+                      className="mt-1 w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                      value={createForm.severityId}
+                      onChange={(e) => setCreateForm({ ...createForm, severityId: e.target.value })}
+                    >
+                      {BUG_SEVERITIES.map((s) => (
+                        <option key={s.id} value={s.id}>{s.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label htmlFor="create-source">Source</Label>
+                    <select
+                      id="create-source"
+                      className="mt-1 w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                      value={createForm.sourceId}
+                      onChange={(e) => setCreateForm({ ...createForm, sourceId: e.target.value })}
+                    >
+                      {BUG_SOURCES.map((s) => (
+                        <option key={s.id} value={s.id}>{s.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
-              <div>
-                <Label htmlFor="create-priority">Priority</Label>
-                <select
-                  id="create-priority"
-                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-                  value={createForm.priorityId}
-                  onChange={(e) => setCreateForm({ ...createForm, priorityId: e.target.value })}
-                >
-                  {BUG_PRIORITIES.map((p) => (
-                    <option key={p.id} value={p.id}>{p.label}</option>
-                  ))}
-                </select>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleCreateBug} disabled={!createForm.title}>
+                  Create Bug
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>Add Evidence</DialogTitle>
+                <DialogDescription>
+                  Bug created. Optionally attach screenshots, logs, or other files before closing.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-2">
+                <EvidenceManager
+                  entityType="bug"
+                  entityId={newBugId}
+                  projectId={projectId}
+                />
               </div>
-              <div>
-                <Label htmlFor="create-severity">Severity</Label>
-                <select
-                  id="create-severity"
-                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-                  value={createForm.severityId}
-                  onChange={(e) => setCreateForm({ ...createForm, severityId: e.target.value })}
-                >
-                  {BUG_SEVERITIES.map((s) => (
-                    <option key={s.id} value={s.id}>{s.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="create-source">Source</Label>
-                <select
-                  id="create-source"
-                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-                  value={createForm.sourceId}
-                  onChange={(e) => setCreateForm({ ...createForm, sourceId: e.target.value })}
-                >
-                  {BUG_SOURCES.map((s) => (
-                    <option key={s.id} value={s.id}>{s.label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreateBug} disabled={!createForm.title}>
-              Create Bug
-            </Button>
-          </DialogFooter>
+              <DialogFooter>
+                <Button onClick={() => { setNewBugId(null); setIsCreateDialogOpen(false) }}>
+                  Done
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteConfirm !== null}
+        onOpenChange={(open) => { if (!open) setDeleteConfirm(null) }}
+        title="Delete Bug"
+        description={`Are you sure you want to delete this bug? This action cannot be undone.`}
+        onConfirm={() => deleteConfirm && handleDeleteBug(deleteConfirm)}
+      />
     </div>
   )
 }

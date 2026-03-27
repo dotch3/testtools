@@ -38,7 +38,7 @@ export async function executionRoutes(app: FastifyInstance) {
             platform: { type: "string" },
           },
         },
-        response: { 201: { type: "object" } },
+        response: { 201: { type: "object", additionalProperties: true } },
       },
     },
     async (request, reply) => {
@@ -81,7 +81,7 @@ export async function executionRoutes(app: FastifyInstance) {
             testPlanId: { type: "string" },
           },
         },
-        response: { 201: { type: "object" } },
+        response: { 201: { type: "object", additionalProperties: true } },
       },
     },
     async (request, reply) => {
@@ -265,7 +265,7 @@ export async function executionRoutes(app: FastifyInstance) {
             notes: { type: "string" },
           },
         },
-        response: { 201: { type: "object" } },
+        response: { 201: { type: "object", additionalProperties: true } },
       },
     },
     async (request, reply) => {

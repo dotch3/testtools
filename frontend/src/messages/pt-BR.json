@@ -90,6 +90,58 @@
     "techStack": "Tecnologias",
     "contribute": "Dê uma estrela no GitHub!"
   },
+  "testPlans": {
+    "title": "Planos de Teste",
+    "selectProject": "Selecione um projeto para ver os planos de teste",
+    "selectProjectDescription": "Por favor, selecione um projeto no cabeçalho para visualizar e gerenciar planos de teste.",
+    "searchPlaceholder": "Buscar planos de teste...",
+    "createButton": "Criar Plano de Teste",
+    "noPlansYet": "Nenhum plano de teste ainda",
+    "noPlansDescription": "Crie seu primeiro plano de teste para organizar e gerenciar seus casos de teste de forma eficaz.",
+    "noPlansFound": "Nenhum plano de teste encontrado",
+    "noPlansFoundDescription": "Tente ajustar sua busca.",
+    "suites": "suítes",
+    "cases": "casos",
+    "executions": "execuções",
+    "viewDetails": "Ver Detalhes",
+    "create": {
+      "title": "Criar Plano de Teste",
+      "description": "Um plano de teste documenta a abordagem, escopo, cronograma e recursos das suas atividades de teste.",
+      "submit": "Criar Plano de Teste"
+    },
+    "edit": {
+      "title": "Editar Plano de Teste",
+      "description": "Atualize os detalhes, escopo e cronograma do plano de teste.",
+      "submit": "Salvar Alterações"
+    },
+    "fields": {
+      "name": "Nome do Plano de Teste",
+      "namePlaceholder": "ex: Regressão de API — Versão 2.5",
+      "nameHelp": "Um nome conciso que identifica o produto, versão ou escopo de testes.",
+      "objectives": "Objetivos e Escopo",
+      "objectivesPlaceholder": "Descreva os objetivos, escopo, o que está dentro e fora do escopo deste plano.\n\nExemplo:\n- Objetivo: validar o fluxo de checkout com múltiplos métodos de pagamento\n- Dentro do escopo: testes funcionais, regressão, exploratório\n- Fora do escopo: testes de carga, navegadores mobile",
+      "objectivesHelp": "Comunique a abordagem de teste à equipe. Inclua objetivos, o que está no escopo, o que está fora do escopo e quaisquer premissas.",
+      "status": "Status",
+      "schedule": "Cronograma",
+      "scheduleHelp": "Defina as datas planejadas de início e término das atividades de teste.",
+      "startDate": "Data de Início",
+      "startDateHelp": "Data planejada para o início das atividades de teste.",
+      "endDate": "Data de Término",
+      "endDateHelp": "Data planejada de lançamento ou entrega."
+    },
+    "status": {
+      "draft": "Rascunho",
+      "active": "Ativo",
+      "completed": "Concluído",
+      "archived": "Arquivado"
+    },
+    "toasts": {
+      "created": "Plano de teste criado com sucesso",
+      "updated": "Plano de teste atualizado com sucesso",
+      "deleted": "Plano de teste excluído com sucesso",
+      "deleteFailed": "Falha ao excluir o plano de teste. Por favor, tente novamente."
+    }
+  },
   "settings": {
     "organizationName": "Nome da Organização",
     "defaultTimezone": "Fuso Horário Padrão",

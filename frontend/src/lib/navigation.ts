@@ -13,6 +13,7 @@ import {
   Plug,
   Database,
   Bell,
+  FolderKanban,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
@@ -38,6 +39,12 @@ export const sidebarNavigation: NavSection[] = [
         href: "/dashboard",
         icon: LayoutDashboard,
         iconColor: "text-icon-blue",
+      },
+      {
+        titleKey: "nav.projects",
+        href: "/projects",
+        icon: FolderKanban,
+        iconColor: "text-icon-orange",
       },
       {
         titleKey: "nav.testPlans",

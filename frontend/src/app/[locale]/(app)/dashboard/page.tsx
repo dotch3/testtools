@@ -22,6 +22,15 @@ import { LoadingSpinner, LoadingPage } from "@/components/ui/loading"
 import { useProject } from "@/contexts/ProjectContext"
 import { api } from "@/lib/api"
 
+interface ProjectStats {
+  testPlans: number
+  testSuites: number
+  testCases: number
+  executions: number
+  openBugs: number
+  bugsByStatus: Record<string, number>
+}
+
 interface DashboardStats {
   testPlans: number
   testCases: number
@@ -69,80 +78,38 @@ export default function DashboardPage() {
     try {
       const projectId = selectedProject.id
 
-      const [plans, bugs] = await Promise.all([
+      const [projectStats, plans] = await Promise.all([
+        api.get<ProjectStats>(`/projects/${projectId}/stats`),
         api.get<any[]>(`/projects/${projectId}/test-plans`),
-        api.get<any[]>(`/projects/${projectId}/bugs`),
       ])
 
-      let totalCases = 0
       const recentExecutionsData: any[] = []
-
       for (const plan of plans) {
-        const suites = await api.get<any[]>(`/test-plans/${plan.id}/suites`)
-        
-        const flattenSuites = (items: any[]): any[] => {
-          const result: any[] = []
-          const flatten = (items: any[]) => {
-            for (const item of items) {
-              result.push(item)
-              if (item.children && item.children.length > 0) {
-                flatten(item.children)
-              }
-            }
-          }
-          flatten(items)
-          return result
-        }
-        
-        const flatSuites = flattenSuites(suites)
-        for (const suite of flatSuites) {
-          totalCases += suite._count?.cases || 0
-        }
-
         const executions = await api.get<any[]>(`/test-plans/${plan.id}/executions`)
         for (const exec of executions) {
           recentExecutionsData.push({ ...exec, planName: plan.name })
         }
       }
-
-      recentExecutionsData.sort((a, b) => 
+      recentExecutionsData.sort((a, b) =>
         new Date(b.executedAt).getTime() - new Date(a.executedAt).getTime()
       )
 
-      const openBugs = bugs.filter((b: any) => {
-        const status = b.status?.value || b.statusId
-        return status === "open" || status === "in_progress" || status === "reopened"
-      }).length
-
-      const passed = recentExecutionsData.filter((e: any) => {
-        const status = e.status?.value || e.statusId
-        return status === "pass"
-      }).length
-      const failed = recentExecutionsData.filter((e: any) => {
-        const status = e.status?.value || e.statusId
-        return status === "fail"
-      }).length
-      const blocked = recentExecutionsData.filter((e: any) => {
-        const status = e.status?.value || e.statusId
-        return status === "blocked"
-      }).length
-      const notRun = recentExecutionsData.filter((e: any) => {
-        const status = e.status?.value || e.statusId
-        return status === "not_run"
-      }).length
-
       const oneWeekAgo = new Date()
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
-      const thisWeekExecutions = recentExecutionsData.filter((e: any) => {
-        const execDate = new Date(e.executedAt)
-        return execDate >= oneWeekAgo
-      })
+      const thisWeekExecutions = recentExecutionsData.filter(
+        (e: any) => new Date(e.executedAt) >= oneWeekAgo
+      )
+
+      const passed = recentExecutionsData.filter((e: any) => (e.status?.value || e.statusId) === "pass").length
+      const failed = recentExecutionsData.filter((e: any) => (e.status?.value || e.statusId) === "fail").length
+      const blocked = recentExecutionsData.filter((e: any) => (e.status?.value || e.statusId) === "blocked").length
+      const notRun = recentExecutionsData.filter((e: any) => (e.status?.value || e.statusId) === "not_run").length
 
       setStats({
-        testPlans: plans.length,
-        testCases: totalCases,
+        testPlans: projectStats.testPlans,
+        testCases: projectStats.testCases,
         executionsThisWeek: thisWeekExecutions.length,
-        openBugs,
+        openBugs: projectStats.openBugs,
       })
 
       setExecutionStats({

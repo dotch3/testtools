@@ -50,7 +50,7 @@ export async function bugRoutes(app: FastifyInstance) {
             externalUrl: { type: "string" },
           },
         },
-        response: { 201: { type: "object" } },
+        response: { 201: { type: "object", additionalProperties: true } },
       },
     },
     async (request, reply) => {
